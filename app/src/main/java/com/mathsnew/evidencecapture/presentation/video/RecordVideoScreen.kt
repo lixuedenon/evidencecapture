@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/video/RecordVideoScreen.kt
-// Kotlin - 表现层，录视频取证界面，含相机权限申请和完整录制停止逻辑
+// Kotlin - 表现层，录视频取证界面
 
 package com.mathsnew.evidencecapture.presentation.video
 
@@ -42,12 +42,14 @@ fun RecordVideoScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
-    val decibel by viewModel.currentDecibel.collectAsState()
+    // 从独立 StateFlow 获取时长，不依赖 uiState 字段
+    val durationSeconds by viewModel.durationSeconds.collectAsState()
 
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
+    // 记录当次录制的 evidenceId，onRecordingStopped 时需要传入
+    var currentEvidenceId by remember { mutableStateOf("") }
 
-    // 同时申请相机 + 麦克风权限
     val permissions = rememberMultiplePermissionsState(
         listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
     )
@@ -64,7 +66,6 @@ fun RecordVideoScreen(
         }
     }
 
-    // 录制中拦截返回键，防止卡死
     val isRecording = uiState is VideoUiState.Recording
     var showExitDialog by remember { mutableStateOf(false) }
 
@@ -113,7 +114,6 @@ fun RecordVideoScreen(
                 .padding(padding)
         ) {
             if (!permissions.allPermissionsGranted) {
-                // 权限未授予时显示提示
                 Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,11 +137,10 @@ fun RecordVideoScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // 录制中顶部状态栏
+                // 录制中顶部状态栏，使用 durationSeconds StateFlow
                 if (uiState is VideoUiState.Recording) {
-                    val state = uiState as VideoUiState.Recording
-                    val min = state.durationSec / 60
-                    val sec = state.durationSec % 60
+                    val min = durationSeconds / 60
+                    val sec = durationSeconds % 60
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
@@ -165,13 +164,6 @@ fun RecordVideoScreen(
                                 color = Color.White,
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            if (decibel > 0f) {
-                                Text(
-                                    text = "%.0f dB".format(decibel),
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
                         }
                     }
                 }
@@ -187,6 +179,7 @@ fun RecordVideoScreen(
                             FloatingActionButton(
                                 onClick = {
                                     val evidenceId = EvidenceIdGenerator.generate()
+                                    currentEvidenceId = evidenceId
                                     startVideoRecording(
                                         context = context,
                                         videoCapture = videoCapture,
@@ -198,8 +191,11 @@ fun RecordVideoScreen(
                                             activeRecording = recording
                                         },
                                         onFinalized = { videoPath ->
-                                            // CameraX 录制完成后拿到实际路径再通知 ViewModel 保存
-                                            viewModel.onRecordingStopped(videoPath)
+                                            // 传入 evidenceId 和 videoPath，修复之前只传一个参数的 bug
+                                            viewModel.onRecordingStopped(
+                                                evidenceId = currentEvidenceId,
+                                                videoPath = videoPath
+                                            )
                                         },
                                         onError = { error ->
                                             Log.e("RecordVideoScreen", "Recording error: $error")
@@ -325,7 +321,6 @@ private fun startVideoRecording(
                         Log.e("RecordVideoScreen", "Recording finalize error: ${event.error}")
                         onError("录制错误: ${event.error}")
                     } else {
-                        // 从 Finalize 事件中拿到实际写入路径
                         val savedPath = outputFile.absolutePath
                         Log.i("RecordVideoScreen", "Recording finalized: $savedPath")
                         onFinalized(savedPath)

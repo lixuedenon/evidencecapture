@@ -8,6 +8,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.mathsnew.evidencecapture.data.local.database.entity.SensorSnapshotEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SensorSnapshotDao {
@@ -17,6 +18,13 @@ interface SensorSnapshotDao {
 
     @Query("SELECT * FROM sensor_snapshot WHERE evidenceId = :evidenceId LIMIT 1")
     suspend fun getByEvidenceId(evidenceId: String): SensorSnapshotEntity?
+
+    /**
+     * 以 Flow 方式持续观察快照，天气/地址异步回填后会自动触发新值
+     * 供 EvidenceDetailViewModel 使用，确保天气数据写入后 UI 自动刷新
+     */
+    @Query("SELECT * FROM sensor_snapshot WHERE evidenceId = :evidenceId LIMIT 1")
+    fun observeByEvidenceId(evidenceId: String): Flow<SensorSnapshotEntity?>
 
     /** 回填天气数据（网络请求完成后异步调用） */
     @Query("""

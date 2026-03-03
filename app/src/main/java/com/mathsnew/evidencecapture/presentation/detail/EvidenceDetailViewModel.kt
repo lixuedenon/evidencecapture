@@ -39,7 +39,7 @@ sealed class AudioPlayState {
         val path: String,
         val currentMs: Int,
         val totalMs: Int,
-        val label: String   // "录音" 或 "语音备注"
+        val label: String
     ) : AudioPlayState()
     data class Paused(
         val path: String,
@@ -65,23 +65,38 @@ class EvidenceDetailViewModel @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
 
+    /**
+     * 加载证据及快照。
+     * 快照通过 Flow 持续观察，天气/地址异步回填数据库后，UI 会自动收到新值并刷新，
+     * 解决"保存后立刻进入详情页，天气尚未回填导致永久不显示"的竞态问题。
+     */
     fun loadEvidence(evidenceId: String) {
-        Log.e(TAG, "loadEvidence called: $evidenceId")
+        Log.i(TAG, "loadEvidence called: $evidenceId")
         viewModelScope.launch {
             try {
                 val evidence = evidenceRepository.getById(evidenceId)
-                Log.e(TAG, "evidence loaded: ${evidence?.id} mediaType=${evidence?.mediaType} mediaPath=${evidence?.mediaPath}")
+                Log.i(TAG, "evidence loaded: ${evidence?.id} mediaType=${evidence?.mediaType}")
                 if (evidence == null) {
                     _uiState.value = DetailUiState.Error("证据不存在")
                     return@launch
                 }
-                val snapshot = snapshotRepository.getByEvidenceId(evidenceId)
                 val hashVerified = if (evidence.mediaPath.isNotEmpty() &&
                     evidence.sha256Hash.isNotEmpty()
                 ) {
                     HashUtil.verifyFile(evidence.mediaPath, evidence.sha256Hash)
                 } else true
-                _uiState.value = DetailUiState.Success(evidence, snapshot, hashVerified)
+
+                // 初始先用一次性查询快速呈现页面，避免 Flow 首次发射前白屏
+                val initialSnapshot = snapshotRepository.getByEvidenceId(evidenceId)
+                _uiState.value = DetailUiState.Success(evidence, initialSnapshot, hashVerified)
+
+                // 持续观察快照 Flow，天气/地址回填后自动更新 UI
+                snapshotRepository.observeByEvidenceId(evidenceId).collect { snapshot ->
+                    val current = _uiState.value
+                    if (current is DetailUiState.Success) {
+                        _uiState.value = current.copy(snapshot = snapshot)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load evidence", e)
                 _uiState.value = DetailUiState.Error(e.message ?: "加载失败")
@@ -156,7 +171,6 @@ class EvidenceDetailViewModel @Inject constructor(
                 start()
                 setOnCompletionListener {
                     progressJob?.cancel()
-                    _audioPlayState.value = AudioPlayState.Idle
                     stopAudio()
                 }
             }

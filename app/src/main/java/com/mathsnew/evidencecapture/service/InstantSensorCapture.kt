@@ -60,7 +60,17 @@ class InstantSensorCapture @Inject constructor(
             .create(WeatherApi::class.java)
     }
 
-    suspend fun capture(evidenceId: String): SensorSnapshot = withContext(Dispatchers.Default) {
+    /**
+     * 采集一次完整的环境快照。
+     * @param evidenceId     关联证据 ID
+     * @param measureDecibel 是否采集分贝。
+     *                       拍照取证传 true（默认，麦克风空闲可正常采集）；
+     *                       录音/录像取证传 false（麦克风已被占用，跳过采集直接填 0）。
+     */
+    suspend fun capture(
+        evidenceId: String,
+        measureDecibel: Boolean = true
+    ): SensorSnapshot = withContext(Dispatchers.Default) {
         val capturedAt = System.currentTimeMillis()
 
         val networkTimeDeferred = async(Dispatchers.IO) { getSntpTime() }
@@ -77,7 +87,8 @@ class InstantSensorCapture @Inject constructor(
         }
         val lightDeferred = async { readSensor(Sensor.TYPE_LIGHT) { it[0] } }
         val pressureDeferred = async { readSensor(Sensor.TYPE_PRESSURE) { it[0] } }
-        val decibelDeferred = async(Dispatchers.IO) { measureDecibel() }
+        // measureDecibel = false 时跳过分贝采集，不启动 AudioRecord，直接填 0
+        val decibelDeferred = if (measureDecibel) async(Dispatchers.IO) { measureDecibel() } else null
         val wifiDeferred = async(Dispatchers.IO) { getWifiSsid() }
         val operatorDeferred = async(Dispatchers.IO) { getMobileOperator() }
 
@@ -86,7 +97,9 @@ class InstantSensorCapture @Inject constructor(
         val azimuth = withTimeoutOrNull(2000L) { azimuthDeferred.await() } ?: 0f
         val lightLux = withTimeoutOrNull(2000L) { lightDeferred.await() } ?: 0f
         val pressure = withTimeoutOrNull(2000L) { pressureDeferred.await() } ?: 0f
-        val decibel = withTimeoutOrNull(2000L) { decibelDeferred.await() } ?: 0f
+        val decibel = if (decibelDeferred != null) {
+            withTimeoutOrNull(2000L) { decibelDeferred.await() } ?: 0f
+        } else 0f
         val wifiSsid = withTimeoutOrNull(1000L) { wifiDeferred.await() } ?: ""
         val operator = withTimeoutOrNull(1000L) { operatorDeferred.await() } ?: ""
 
@@ -110,7 +123,7 @@ class InstantSensorCapture @Inject constructor(
                     "db=${it.decibel} pressure=${it.pressureHpa} " +
                     "lat=${it.latitude} lng=${it.longitude} " +
                     "wifi=${it.wifiSsid} operator=${it.operator} " +
-                    "networkTime=$networkTime")
+                    "networkTime=$networkTime measureDecibel=$measureDecibel")
         }
     }
 
@@ -156,6 +169,9 @@ class InstantSensorCapture @Inject constructor(
         }
     }
 
+    /**
+     * 公开的分贝采集接口，供外部按需调用
+     */
     suspend fun measureDecibelPublic(): Float = withContext(Dispatchers.IO) {
         measureDecibel()
     }
@@ -219,6 +235,12 @@ class InstantSensorCapture @Inject constructor(
         }
     }
 
+    /**
+     * 采集一次环境分贝。
+     * 修正公式：以 16bit 满量程 32768 为基准计算 dBFS，加 96 偏移映射为 0~96 正值。
+     * 原公式 rms > 1.0 的阈值过高，安静环境 RMS 低于 1.0 时永远返回 0。
+     * 修正后：安静环境约 20~35dB，正常说话约 55~70dB。
+     */
     @Suppress("MissingPermission")
     private fun measureDecibel(): Float {
         val bufferSize = AudioRecord.getMinBufferSize(
@@ -244,7 +266,12 @@ class InstantSensorCapture @Inject constructor(
             recorder.read(buffer, 0, bufferSize)
             recorder.stop()
             val rms = sqrt(buffer.map { it.toLong() * it.toLong() }.average())
-            if (rms > 1.0) log10(rms).toFloat() * 20f else 0f
+            if (rms > 0.0) {
+                val db = (20.0 * log10(rms / 32768.0) + 96.0).toFloat()
+                db.coerceIn(0f, 96f)
+            } else {
+                0f
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Decibel failed: ${e.message}")
             0f

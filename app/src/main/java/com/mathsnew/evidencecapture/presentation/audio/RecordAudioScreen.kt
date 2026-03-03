@@ -25,6 +25,7 @@ fun RecordAudioScreen(
     val uiState by viewModel.uiState.collectAsState()
     val disguiseMode by viewModel.disguiseMode.collectAsState()
     val snapshot by viewModel.snapshot.collectAsState()
+    val durationSeconds by viewModel.durationSeconds.collectAsState()
 
     var tag by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
@@ -36,10 +37,7 @@ fun RecordAudioScreen(
         }
     }
 
-    // 伪装界面激活时显示对应伪装屏幕
-    if (disguiseMode != DisguiseMode.NONE &&
-        uiState is AudioUiState.Recording
-    ) {
+    if (disguiseMode != DisguiseMode.NONE && uiState is AudioUiState.Recording) {
         DisguiseScreen(
             mode = disguiseMode,
             onReveal = { viewModel.setDisguiseMode(DisguiseMode.NONE) }
@@ -57,7 +55,6 @@ fun RecordAudioScreen(
                     }
                 },
                 actions = {
-                    // 伪装模式入口（录音中才可激活）
                     IconButton(
                         onClick = { showDisguisePicker = true },
                         enabled = uiState is AudioUiState.Recording
@@ -84,10 +81,8 @@ fun RecordAudioScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 录音状态显示
-            RecordingStatusArea(uiState = uiState)
+            RecordingStatusArea(uiState = uiState, durationSeconds = durationSeconds)
 
-            // 标题输入（仅 Idle 状态可编辑）
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -97,14 +92,11 @@ fun RecordAudioScreen(
                 singleLine = true
             )
 
-            // 开始/停止按钮
             when (uiState) {
                 is AudioUiState.Idle -> {
                     Button(
                         onClick = { viewModel.startRecording() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
+                        modifier = Modifier.fillMaxWidth().height(56.dp)
                     ) {
                         Icon(Icons.Default.Mic, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -114,9 +106,7 @@ fun RecordAudioScreen(
                 is AudioUiState.Recording -> {
                     Button(
                         onClick = { viewModel.stopAndSave(title = title) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         )
@@ -133,7 +123,6 @@ fun RecordAudioScreen(
                 else -> {}
             }
 
-            // 错误提示
             if (uiState is AudioUiState.Error) {
                 Text(
                     text = (uiState as AudioUiState.Error).message,
@@ -142,14 +131,10 @@ fun RecordAudioScreen(
                 )
             }
 
-            // 环境数据卡片（录音开始后显示）
-            snapshot?.let {
-                SnapshotCard(snapshot = it)
-            }
+            snapshot?.let { SnapshotCard(snapshot = it) }
         }
     }
 
-    // 伪装模式选择弹窗
     if (showDisguisePicker) {
         DisguisePickerDialog(
             onSelect = { mode ->
@@ -162,7 +147,7 @@ fun RecordAudioScreen(
 }
 
 @Composable
-private fun RecordingStatusArea(uiState: AudioUiState) {
+private fun RecordingStatusArea(uiState: AudioUiState, durationSeconds: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         when (uiState) {
             is AudioUiState.Idle -> {
@@ -185,8 +170,8 @@ private fun RecordingStatusArea(uiState: AudioUiState) {
                     modifier = Modifier.size(80.dp),
                     tint = MaterialTheme.colorScheme.error
                 )
-                val min = uiState.durationSec / 60
-                val sec = uiState.durationSec % 60
+                val min = durationSeconds / 60
+                val sec = durationSeconds % 60
                 Text(
                     text = "%02d:%02d".format(min, sec),
                     style = MaterialTheme.typography.headlineMedium
@@ -203,10 +188,7 @@ private fun RecordingStatusArea(uiState: AudioUiState) {
 }
 
 @Composable
-private fun DisguisePickerDialog(
-    onSelect: (DisguiseMode) -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun DisguisePickerDialog(onSelect: (DisguiseMode) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择伪装界面") },
@@ -218,16 +200,12 @@ private fun DisguisePickerDialog(
                         TextButton(
                             onClick = { onSelect(mode) },
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(mode.displayName())
-                        }
+                        ) { Text(mode.displayName()) }
                     }
             }
         },
         confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 }
 

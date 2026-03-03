@@ -222,7 +222,9 @@ fun EvidenceDetailScreen(
                         MediaType.VIDEO -> {
                             Card(modifier = Modifier.fillMaxWidth()) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
@@ -232,7 +234,36 @@ fun EvidenceDetailScreen(
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("视频文件", style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        text = "视频文件",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    // 调起系统视频播放器
+                                    IconButton(onClick = {
+                                        val file = java.io.File(evidence.mediaPath)
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            file
+                                        )
+                                        val intent = android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW
+                                        ).apply {
+                                            setDataAndType(uri, "video/*")
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(
+                                            android.content.Intent.createChooser(intent, "播放视频")
+                                        )
+                                    }) {
+                                        Icon(
+                                            Icons.Default.PlayCircle,
+                                            contentDescription = "播放视频",
+                                            modifier = Modifier.size(36.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                 }
                             }
                         }
