@@ -13,7 +13,8 @@ package com.mathsnew.evidencecapture.domain.model
  * @param voiceNotePath 语音备注文件路径（拍照取证可选附加）
  * @param textContent   文字内容（TEXT 类型时有效）
  * @param tag           场景标签（如"租房纠纷"、"交通事故"）
- * @param title         用户自定义标题（可选）
+ * @param title         用户自定义标题
+ * @param notes         用户备注，可随时编辑的自由文本
  * @param sha256Hash    媒体文件 SHA-256 哈希，用于防篡改验证
  * @param createdAt     创建时间戳（毫秒）
  * @param isUploaded    是否已上传云端（预留字段）
@@ -28,6 +29,7 @@ data class Evidence(
     val textContent: String = "",
     val tag: String = "",
     val title: String = "",
+    val notes: String = "",
     val sha256Hash: String = "",
     val createdAt: Long,
     val isUploaded: Boolean = false,

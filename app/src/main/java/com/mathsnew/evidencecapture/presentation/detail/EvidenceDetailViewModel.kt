@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/detail/EvidenceDetailViewModel.kt
-// Kotlin - 表现层，证据详情 ViewModel，含音频播放状态管理
+// Kotlin - 表现层，证据详情 ViewModel，含音频播放状态管理和元数据编辑
 
 package com.mathsnew.evidencecapture.presentation.detail
 
@@ -67,15 +67,13 @@ class EvidenceDetailViewModel @Inject constructor(
 
     /**
      * 加载证据及快照。
-     * 快照通过 Flow 持续观察，天气/地址异步回填数据库后，UI 会自动收到新值并刷新，
-     * 解决"保存后立刻进入详情页，天气尚未回填导致永久不显示"的竞态问题。
+     * 快照通过 Flow 持续观察，天气/地址异步回填数据库后 UI 自动刷新。
      */
     fun loadEvidence(evidenceId: String) {
         Log.i(TAG, "loadEvidence called: $evidenceId")
         viewModelScope.launch {
             try {
                 val evidence = evidenceRepository.getById(evidenceId)
-                Log.i(TAG, "evidence loaded: ${evidence?.id} mediaType=${evidence?.mediaType}")
                 if (evidence == null) {
                     _uiState.value = DetailUiState.Error("证据不存在")
                     return@launch
@@ -86,7 +84,6 @@ class EvidenceDetailViewModel @Inject constructor(
                     HashUtil.verifyFile(evidence.mediaPath, evidence.sha256Hash)
                 } else true
 
-                // 初始先用一次性查询快速呈现页面，避免 Flow 首次发射前白屏
                 val initialSnapshot = snapshotRepository.getByEvidenceId(evidenceId)
                 _uiState.value = DetailUiState.Success(evidence, initialSnapshot, hashVerified)
 
@@ -105,14 +102,35 @@ class EvidenceDetailViewModel @Inject constructor(
     }
 
     /**
-     * 播放或暂停指定音频文件
-     * @param path   音频文件绝对路径
-     * @param label  显示标签，"录音" 或 "语音备注"
+     * 更新证据的可编辑元数据：标题、标签、备注
+     * 更新后同步刷新 UI 状态，用户立即看到新值
      */
+    fun updateMeta(id: String, title: String, tag: String, notes: String) {
+        viewModelScope.launch {
+            try {
+                evidenceRepository.updateMeta(id, title, tag, notes)
+                // 同步更新内存中的 UI 状态，无需重新查询数据库
+                val current = _uiState.value
+                if (current is DetailUiState.Success) {
+                    _uiState.value = current.copy(
+                        evidence = current.evidence.copy(
+                            title = title,
+                            tag = tag,
+                            notes = notes
+                        )
+                    )
+                }
+                Log.i(TAG, "Meta updated: $id")
+            } catch (e: Exception) {
+                Log.e(TAG, "Update meta failed: ${e.message}")
+            }
+        }
+    }
+
+    /** 播放或暂停指定音频文件 */
     fun togglePlay(path: String, label: String) {
         val current = _audioPlayState.value
         when {
-            // 当前正在播放同一文件 → 暂停
             current is AudioPlayState.Playing && current.path == path -> {
                 mediaPlayer?.pause()
                 _audioPlayState.value = AudioPlayState.Paused(
@@ -123,7 +141,6 @@ class EvidenceDetailViewModel @Inject constructor(
                 )
                 progressJob?.cancel()
             }
-            // 当前已暂停同一文件 → 继续播放
             current is AudioPlayState.Paused && current.path == path -> {
                 mediaPlayer?.start()
                 _audioPlayState.value = AudioPlayState.Playing(
@@ -134,7 +151,6 @@ class EvidenceDetailViewModel @Inject constructor(
                 )
                 startProgressTracking(path, label)
             }
-            // 其他情况（Idle 或切换到另一文件）→ 重新初始化播放
             else -> {
                 stopAudio()
                 startPlay(path, label)

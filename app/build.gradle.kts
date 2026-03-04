@@ -22,7 +22,6 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 从 local.properties 读取天气 API Key
         val properties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
         if (localPropertiesFile.exists()) {
@@ -111,6 +110,10 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 
     implementation("com.itextpdf:itextpdf:5.5.13.3")
+
+    // Media3 ExoPlayer：内置视频播放器
+    implementation("androidx.media3:media3-exoplayer:1.3.0")
+    implementation("androidx.media3:media3-ui:1.3.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

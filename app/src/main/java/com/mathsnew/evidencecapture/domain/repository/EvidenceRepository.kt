@@ -17,8 +17,14 @@ interface EvidenceRepository {
     /** 获取全部证据，按创建时间倒序，Flow 持续监听数据库变化 */
     fun getAll(): Flow<List<Evidence>>
 
-    /** 删除指定证据（级联删除关联的传感器快照和媒体文件由调用方负责） */
+    /** 删除指定证据（级联删除关联的传感器快照，媒体文件由调用方负责） */
     suspend fun delete(id: String)
+
+    /**
+     * 更新可编辑的元数据：标题、标签、备注
+     * 不修改媒体路径、哈希、时间戳等取证核心字段
+     */
+    suspend fun updateMeta(id: String, title: String, tag: String, notes: String)
 
     /**
      * 标记为已上传（预留接口，云端上传功能实现时调用）

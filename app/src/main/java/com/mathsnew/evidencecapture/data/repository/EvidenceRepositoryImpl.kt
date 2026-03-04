@@ -31,6 +31,10 @@ class EvidenceRepositoryImpl @Inject constructor(
         evidenceDao.deleteById(id)
     }
 
+    override suspend fun updateMeta(id: String, title: String, tag: String, notes: String) {
+        evidenceDao.updateMeta(id, title, tag, notes)
+    }
+
     override suspend fun markAsUploaded(id: String, uploadUrl: String) {
         evidenceDao.markAsUploaded(id)
     }

@@ -30,7 +30,8 @@ object AppModule {
         EvidenceDatabase::class.java,
         EvidenceDatabase.DATABASE_NAME
     )
-        .fallbackToDestructiveMigration()
+        // 注册 v2→v3 Migration，新增 notes 列，保留存量数据
+        .addMigrations(EvidenceDatabase.MIGRATION_2_3)
         .build()
 
     @Provides

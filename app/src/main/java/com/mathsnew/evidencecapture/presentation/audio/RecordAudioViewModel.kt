@@ -111,6 +111,7 @@ class RecordAudioViewModel @Inject constructor(
         if (evidenceId.isEmpty()) return
         durationJob?.cancel()
 
+        // 发送停止指令给前台服务，Service 收到后同步执行 stop()+release() 写盘
         val stopIntent = Intent(context, AudioRecordService::class.java).apply {
             action = AudioRecordService.ACTION_STOP
         }
@@ -119,8 +120,13 @@ class RecordAudioViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = AudioUiState.Saving
             try {
-                // 等待后台传感器采集完成（正常录几秒后早已结束，几乎不等待）
+                // 等待后台传感器采集完成
                 captureJob?.join()
+
+                // 等待 AudioRecordService 完成 MediaRecorder.stop()+release() 写盘
+                // Service 的 onStartCommand 在主线程同步执行，500ms 足够其完成文件写入
+                // 此时 UI 已显示"保存中..."，用户无感知
+                delay(500)
 
                 val audioPath = FileHelper.getAudioFile(context, evidenceId).absolutePath
                 val hash = withContext(Dispatchers.IO) { HashUtil.hashFile(audioPath) }
@@ -138,7 +144,7 @@ class RecordAudioViewModel @Inject constructor(
                 // 先写 evidence，再写 snapshot，满足外键约束
                 evidenceRepository.save(evidence)
                 snapshot?.let { snapshotRepository.insert(it) }
-                Log.i(TAG, "Audio saved: $evidenceId")
+                Log.i(TAG, "Audio saved: $evidenceId, hash=$hash")
 
                 // 异步回填地址和天气
                 launch(Dispatchers.IO) {

@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/main/MainViewModel.kt
-// Kotlin - 表现层，主页 ViewModel，含搜索/筛选/排序/删除/批量删除逻辑
+// Kotlin - 表现层，主页 ViewModel，含搜索/筛选/排序/删除/批量删除/编辑元数据逻辑
 
 package com.mathsnew.evidencecapture.presentation.main
 
@@ -60,11 +60,11 @@ class MainViewModel @Inject constructor(
         list
             .filter { evidence ->
                 when (filter) {
-                    FilterType.ALL -> true
+                    FilterType.ALL   -> true
                     FilterType.PHOTO -> evidence.mediaType == MediaType.PHOTO
                     FilterType.VIDEO -> evidence.mediaType == MediaType.VIDEO
                     FilterType.AUDIO -> evidence.mediaType == MediaType.AUDIO
-                    FilterType.TEXT -> evidence.mediaType == MediaType.TEXT
+                    FilterType.TEXT  -> evidence.mediaType == MediaType.TEXT
                 }
             }
             .filter { evidence ->
@@ -140,6 +140,21 @@ class MainViewModel @Inject constructor(
                 exitSelectionMode()
             } catch (e: Exception) {
                 Log.e(TAG, "Batch delete failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 更新证据的可编辑元数据：标题、标签、备注
+     * 不修改媒体路径、哈希、时间戳等取证核心字段
+     */
+    fun updateMeta(id: String, title: String, tag: String, notes: String) {
+        viewModelScope.launch {
+            try {
+                evidenceRepository.updateMeta(id, title, tag, notes)
+                Log.i(TAG, "Meta updated: $id title=$title tag=$tag")
+            } catch (e: Exception) {
+                Log.e(TAG, "Update meta failed: ${e.message}")
             }
         }
     }
