@@ -39,11 +39,9 @@ fun TextNoteScreen(
 
     val audioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
 
-    // 实时将语音中间结果追加到文本框末尾
     val displayContent = if (isListening && voicePartial.isNotEmpty())
         content + voicePartial else content
 
-    // 语音识别完成后追加到内容
     LaunchedEffect(isListening) {
         if (!isListening && voicePartial.isNotEmpty()) {
             content = content + voicePartial
@@ -74,14 +72,30 @@ fun TextNoteScreen(
             )
         },
         bottomBar = {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // 取消：直接回主页
+                OutlinedButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    enabled = uiState !is TextNoteUiState.Saving
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("取消")
+                }
+                // 保存：保存记录，回主页
                 Button(
                     onClick = { viewModel.saveNote(content, selectedTag, title) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
                     enabled = uiState !is TextNoteUiState.Saving && content.isNotBlank()
                 ) {
                     if (uiState is TextNoteUiState.Saving) {
@@ -106,7 +120,6 @@ fun TextNoteScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 标题
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -115,7 +128,6 @@ fun TextNoteScreen(
                 singleLine = true
             )
 
-            // 正文输入框 + 语音输入按钮
             OutlinedTextField(
                 value = displayContent,
                 onValueChange = { content = it },
@@ -152,7 +164,6 @@ fun TextNoteScreen(
                 } else null
             )
 
-            // 场景标签
             Text(
                 text = "场景标签",
                 style = MaterialTheme.typography.labelMedium,
@@ -171,7 +182,6 @@ fun TextNoteScreen(
                 }
             }
 
-            // 错误提示
             if (uiState is TextNoteUiState.Error) {
                 Text(
                     text = (uiState as TextNoteUiState.Error).message,

@@ -111,6 +111,8 @@ class CaptureViewModel @Inject constructor(
                 id = evidenceId,
                 mediaType = MediaType.PHOTO,
                 mediaPath = photoPath,
+                // 默认用 evidenceId 作为标题，用户可在编辑时修改
+                title = evidenceId,
                 sha256Hash = hash,
                 createdAt = snapshot.capturedAt,
                 snapshotId = evidenceId
@@ -146,7 +148,8 @@ class CaptureViewModel @Inject constructor(
                     mediaPath = photoPath,
                     voiceNotePath = voiceNotePath,
                     tag = tag,
-                    title = title,
+                    // 用户未填标题时，默认用 evidenceId 作为标题
+                    title = title.ifBlank { evidenceId },
                     sha256Hash = hash,
                     createdAt = snapshot.capturedAt,
                     snapshotId = evidenceId
@@ -154,7 +157,6 @@ class CaptureViewModel @Inject constructor(
                 evidenceRepository.save(evidence)
                 snapshotRepository.insert(snapshot)
                 Log.i(TAG, "Evidence confirmed: $evidenceId tag=$tag voicePath=$voiceNotePath")
-                // 异步回填地址和天气
                 launch(Dispatchers.IO) {
                     sensorCapture.fetchAndFillAsync(
                         evidenceId, snapshot.latitude, snapshot.longitude

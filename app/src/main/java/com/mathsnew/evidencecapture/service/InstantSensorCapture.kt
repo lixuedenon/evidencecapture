@@ -60,6 +60,23 @@ class InstantSensorCapture @Inject constructor(
             .create(WeatherApi::class.java)
     }
 
+    // ── 天气缓存 ──────────────────────────────────────────────────────────────
+    // 缓存粒度：坐标精确到小数点后2位（约1公里），有效期10分钟
+    // OpenWeatherMap 免费版数据每10分钟刷新一次，高频采集无需重复请求
+    private data class WeatherCache(
+        val latKey: String,
+        val lngKey: String,
+        val desc: String,
+        val temperature: Float,
+        val humidity: Float,
+        val windSpeed: Float,
+        val cachedAt: Long
+    )
+    private var weatherCache: WeatherCache? = null
+    private val CACHE_DURATION_MS = 10 * 60 * 1000L // 10分钟
+
+    private fun coordKey(value: Double): String = "%.2f".format(value)
+
     /**
      * 采集一次完整的环境快照。
      * @param evidenceId     关联证据 ID
@@ -145,27 +162,64 @@ class InstantSensorCapture @Inject constructor(
         }
 
         val apiKey = BuildConfig.WEATHER_API_KEY
-        if (apiKey.isNotEmpty()) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val response: WeatherResponse =
-                        weatherApi.getCurrentWeather(lat, lng, apiKey)
+        if (apiKey.isEmpty()) {
+            Log.w(TAG, "Weather API key not configured")
+            return
+        }
+
+        withContext(Dispatchers.IO) {
+            try {
+                val latKey = coordKey(lat)
+                val lngKey = coordKey(lng)
+                val now = System.currentTimeMillis()
+                val cache = weatherCache
+
+                // 命中缓存：坐标相同（精度0.01°≈1km）且未超过10分钟
+                if (cache != null
+                    && cache.latKey == latKey
+                    && cache.lngKey == lngKey
+                    && now - cache.cachedAt < CACHE_DURATION_MS
+                ) {
+                    Log.i(TAG, "Weather cache hit (${(now - cache.cachedAt) / 1000}s ago), skip API call")
                     snapshotRepository.updateWeather(
                         evidenceId = evidenceId,
-                        desc = response.weather.firstOrNull()?.description ?: "",
-                        temperature = response.main.temp,
-                        humidity = response.main.humidity,
-                        windSpeed = response.wind.speed
+                        desc = cache.desc,
+                        temperature = cache.temperature,
+                        humidity = cache.humidity,
+                        windSpeed = cache.windSpeed
                     )
-                    Log.i(TAG, "Weather updated: ${response.weather.firstOrNull()?.description} " +
-                            "${response.main.temp}℃ 湿度${response.main.humidity}% " +
-                            "风速${response.wind.speed}m/s")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Weather update failed: ${e.message}")
+                    return@withContext
                 }
+
+                // 缓存未命中，发起API请求
+                val response: WeatherResponse = weatherApi.getCurrentWeather(lat, lng, apiKey)
+                val desc = response.weather.firstOrNull()?.description ?: ""
+                val temperature = response.main.temp
+                val humidity = response.main.humidity
+                val windSpeed = response.wind.speed
+
+                // 更新内存缓存
+                weatherCache = WeatherCache(
+                    latKey = latKey,
+                    lngKey = lngKey,
+                    desc = desc,
+                    temperature = temperature,
+                    humidity = humidity,
+                    windSpeed = windSpeed,
+                    cachedAt = now
+                )
+
+                snapshotRepository.updateWeather(
+                    evidenceId = evidenceId,
+                    desc = desc,
+                    temperature = temperature,
+                    humidity = humidity,
+                    windSpeed = windSpeed
+                )
+                Log.i(TAG, "Weather updated: $desc ${temperature}℃ 湿度${humidity}% 风速${windSpeed}m/s")
+            } catch (e: Exception) {
+                Log.w(TAG, "Weather update failed: ${e.message}")
             }
-        } else {
-            Log.w(TAG, "Weather API key not configured")
         }
     }
 

@@ -23,11 +23,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
 sealed class VideoUiState {
     object Idle : VideoUiState()
     data class Recording(val evidenceId: String) : VideoUiState()
+    // 录完停止后停在此状态，等用户点保存或取消
+    data class ReadyToSave(val evidenceId: String, val videoPath: String) : VideoUiState()
     object Saving : VideoUiState()
     data class Saved(val evidenceId: String) : VideoUiState()
     data class Error(val message: String) : VideoUiState()
@@ -47,21 +50,15 @@ class RecordVideoViewModel @Inject constructor(
     private val _durationSeconds = MutableStateFlow(0)
     val durationSeconds: StateFlow<Int> = _durationSeconds
 
-    // 录像时不采集分贝，保留 StateFlow 供 Screen 正常编译，值始终为 0
     private val _currentDecibel = MutableStateFlow(0f)
     val currentDecibel: StateFlow<Float> = _currentDecibel
 
     private var durationJob: Job? = null
     private var captureJob: Job? = null
-
-    // 内存暂存快照：onRecordingStarted 时后台采集，onRecordingStopped 时再写库
-    // 写库顺序：先 evidence，再 snapshot，满足外键约束（snapshot.evidenceId → evidence.id）
     private var pendingSnapshot: SensorSnapshot? = null
 
     fun onRecordingStarted(evidenceId: String) {
         pendingSnapshot = null
-
-        // 立即切换 UI 到录制状态，用户零等待
         _durationSeconds.value = 0
         durationJob = viewModelScope.launch {
             while (true) {
@@ -70,9 +67,8 @@ class RecordVideoViewModel @Inject constructor(
             }
         }
         _uiState.value = VideoUiState.Recording(evidenceId)
-        Log.i(TAG, "Video recording started immediately: $evidenceId")
+        Log.i(TAG, "Video recording started: $evidenceId")
 
-        // 后台并行采集传感器，不采集分贝（麦克风已被 CameraX 录像占用）
         captureJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val snapshot = sensorCapture.capture(evidenceId, measureDecibel = false)
@@ -84,14 +80,24 @@ class RecordVideoViewModel @Inject constructor(
         }
     }
 
-    fun onRecordingStopped(evidenceId: String, videoPath: String, tag: String = "", title: String = "") {
+    /** 录像停止后进入 ReadyToSave，等用户选择保存或取消 */
+    fun onRecordingStopped(evidenceId: String, videoPath: String) {
         durationJob?.cancel()
+        viewModelScope.launch {
+            captureJob?.join()
+            _uiState.value = VideoUiState.ReadyToSave(evidenceId, videoPath)
+        }
+    }
+
+    /** 用户点保存：写数据库 */
+    fun saveRecording(tag: String = "", title: String = "") {
+        val state = _uiState.value as? VideoUiState.ReadyToSave ?: return
+        val evidenceId = state.evidenceId
+        val videoPath = state.videoPath
+
         viewModelScope.launch {
             _uiState.value = VideoUiState.Saving
             try {
-                // 等待后台传感器采集完成（正常录几秒后早已结束，几乎不等待）
-                captureJob?.join()
-
                 val hash = withContext(Dispatchers.IO) { HashUtil.hashFile(videoPath) }
                 val snapshot = pendingSnapshot
                 val evidence = Evidence(
@@ -99,17 +105,14 @@ class RecordVideoViewModel @Inject constructor(
                     mediaType = MediaType.VIDEO,
                     mediaPath = videoPath,
                     tag = tag,
-                    title = title,
+                    title = title.ifBlank { evidenceId },
                     sha256Hash = hash,
                     createdAt = snapshot?.capturedAt ?: System.currentTimeMillis(),
                     snapshotId = evidenceId
                 )
-                // 先写 evidence，再写 snapshot，满足外键约束
                 evidenceRepository.save(evidence)
                 snapshot?.let { snapshotRepository.insert(it) }
                 Log.i(TAG, "Video saved: $evidenceId")
-
-                // 异步回填地址和天气
                 launch(Dispatchers.IO) {
                     val lat = snapshot?.latitude ?: 0.0
                     val lng = snapshot?.longitude ?: 0.0
@@ -123,7 +126,13 @@ class RecordVideoViewModel @Inject constructor(
         }
     }
 
-    // 重置状态回 Idle，用于放弃录制或错误恢复
+    /** 用户点取消：删除视频文件，重置状态 */
+    fun cancelAndDelete() {
+        val state = _uiState.value as? VideoUiState.ReadyToSave
+        state?.let { File(it.videoPath).delete() }
+        resetState()
+    }
+
     fun resetState() {
         durationJob?.cancel()
         captureJob?.cancel()

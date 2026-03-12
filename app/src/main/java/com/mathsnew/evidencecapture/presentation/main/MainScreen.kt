@@ -492,7 +492,7 @@ private fun EditEvidenceDialog(
     onDismiss: () -> Unit,
     onConfirm: (title: String, tag: String, notes: String) -> Unit
 ) {
-    var title by remember { mutableStateOf(evidence.title) }
+    var title by remember { mutableStateOf(evidence.title.ifBlank { evidence.id }) }
     var tag   by remember { mutableStateOf(evidence.tag) }
     var notes by remember { mutableStateOf(evidence.notes) }
 

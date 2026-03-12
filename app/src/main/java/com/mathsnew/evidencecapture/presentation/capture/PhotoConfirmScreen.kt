@@ -26,8 +26,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.mathsnew.evidencecapture.util.FileHelper
+import java.io.File
 
-/** 场景标签选项 */
 private val TAG_OPTIONS = listOf("租房纠纷", "交通事故", "职场纠纷", "消费欺诈", "人身安全", "家庭纠纷", "其他")
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -51,14 +51,12 @@ fun PhotoConfirmScreen(
 
     val audioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
 
-    // 监听保存成功跳转详情页
     LaunchedEffect(uiState) {
         if (uiState is CaptureUiState.Saved) {
             onSaved((uiState as CaptureUiState.Saved).evidenceId)
         }
     }
 
-    // 离开页面时释放录音资源
     DisposableEffect(Unit) {
         onDispose {
             voiceRecorder?.release()
@@ -83,11 +81,32 @@ fun PhotoConfirmScreen(
             )
         },
         bottomBar = {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // 取消：删除文件，回主页
+                OutlinedButton(
+                    onClick = {
+                        voiceRecorder?.release()
+                        voiceRecorder = null
+                        File(photoPath).delete()
+                        if (voiceNotePath.isNotEmpty()) File(voiceNotePath).delete()
+                        viewModel.resetState()
+                        onBack()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    enabled = uiState !is CaptureUiState.Saving
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("取消")
+                }
+                // 保存：保存记录，回主页
                 Button(
                     onClick = {
                         viewModel.saveEvidence(
@@ -98,7 +117,9 @@ fun PhotoConfirmScreen(
                             title = title
                         )
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
                     enabled = uiState !is CaptureUiState.Saving
                 ) {
                     if (uiState is CaptureUiState.Saving) {
@@ -123,7 +144,6 @@ fun PhotoConfirmScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 照片预览
             AsyncImage(
                 model = photoPath,
                 contentDescription = "拍摄照片",
@@ -133,7 +153,6 @@ fun PhotoConfirmScreen(
                     .height(240.dp)
             )
 
-            // 标题输入
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -142,7 +161,6 @@ fun PhotoConfirmScreen(
                 singleLine = true
             )
 
-            // 场景标签选择
             Text(
                 text = "场景标签",
                 style = MaterialTheme.typography.labelMedium,
@@ -154,7 +172,6 @@ fun PhotoConfirmScreen(
                 onSelect = { selectedTag = if (selectedTag == it) "" else it }
             )
 
-            // 语音备注
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -179,8 +196,7 @@ fun PhotoConfirmScreen(
                             voiceRecorder = null
                             isRecordingVoice = false
                         } else {
-                            val path = FileHelper.getVoiceNoteFile(context, evidenceId)
-                                .absolutePath
+                            val path = FileHelper.getVoiceNoteFile(context, evidenceId).absolutePath
                             voiceRecorder = startVoiceNote(context, path)
                             isRecordingVoice = true
                         }
@@ -196,12 +212,8 @@ fun PhotoConfirmScreen(
                 }
             }
 
-            // 环境数据卡片
-            snapshot?.let {
-                SnapshotCard(snapshot = it)
-            }
+            snapshot?.let { SnapshotCard(snapshot = it) }
 
-            // 错误提示
             if (uiState is CaptureUiState.Error) {
                 Text(
                     text = (uiState as CaptureUiState.Error).message,
@@ -213,7 +225,6 @@ fun PhotoConfirmScreen(
     }
 }
 
-/** 场景标签选择器（再次点击同一标签取消选择） */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun TagSelector(
@@ -235,7 +246,6 @@ private fun TagSelector(
     }
 }
 
-/** 开始录制语音备注，返回 MediaRecorder 实例 */
 private fun startVoiceNote(context: Context, outputPath: String): MediaRecorder? {
     return try {
         val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -258,7 +268,6 @@ private fun startVoiceNote(context: Context, outputPath: String): MediaRecorder?
     }
 }
 
-/** 停止语音备注录制 */
 private fun stopVoiceNote(recorder: MediaRecorder?, path: String, onPath: (String) -> Unit) {
     recorder ?: return
     try {

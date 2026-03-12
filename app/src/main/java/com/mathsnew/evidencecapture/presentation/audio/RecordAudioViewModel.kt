@@ -28,17 +28,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
 sealed class AudioUiState {
     object Idle : AudioUiState()
     data class Recording(val evidenceId: String) : AudioUiState()
+    object Stopping : AudioUiState()
+    // 录完停止后停在此状态，等用户点保存或取消
+    data class ReadyToSave(val evidenceId: String, val audioPath: String) : AudioUiState()
     object Saving : AudioUiState()
     data class Saved(val evidenceId: String) : AudioUiState()
     data class Error(val message: String) : AudioUiState()
 }
-
-// DisguiseMode 枚举统一使用 domain.model.DisguiseMode，此处不重复定义
 
 @HiltViewModel
 class RecordAudioViewModel @Inject constructor(
@@ -57,25 +59,20 @@ class RecordAudioViewModel @Inject constructor(
     private val _disguiseMode = MutableStateFlow(DisguiseMode.NONE)
     val disguiseMode: StateFlow<DisguiseMode> = _disguiseMode
 
-    // 供 RecordAudioScreen 中 SnapshotCard 展示环境数据
     private val _snapshot = MutableStateFlow<SensorSnapshot?>(null)
     val snapshot: StateFlow<SensorSnapshot?> = _snapshot
 
     private var durationJob: Job? = null
     private var captureJob: Job? = null
     private var currentEvidenceId: String = ""
-
-    // 内存暂存快照：startRecording 时后台采集，stopAndSave 时再写库
-    // 写库顺序：先 evidence，再 snapshot，满足外键约束（snapshot.evidenceId → evidence.id）
     private var pendingSnapshot: SensorSnapshot? = null
 
-    fun startRecording(title: String = "") {
+    fun startRecording() {
         val evidenceId = EvidenceIdGenerator.generate()
         currentEvidenceId = evidenceId
         pendingSnapshot = null
         _snapshot.value = null
 
-        // 立即启动录音服务，用户零等待
         val audioPath = FileHelper.getAudioFile(context, evidenceId).absolutePath
         val intent = Intent(context, AudioRecordService::class.java).apply {
             action = AudioRecordService.ACTION_START
@@ -91,44 +88,48 @@ class RecordAudioViewModel @Inject constructor(
             }
         }
         _uiState.value = AudioUiState.Recording(evidenceId)
-        Log.i(TAG, "Recording started immediately: $evidenceId")
+        Log.i(TAG, "Recording started: $evidenceId")
 
-        // 后台并行采集传感器，不采集分贝（麦克风已被录音服务占用）
         captureJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val snapshot = sensorCapture.capture(evidenceId, measureDecibel = false)
                 pendingSnapshot = snapshot
                 _snapshot.value = snapshot
-                Log.i(TAG, "Sensor captured in background: $evidenceId")
             } catch (e: Exception) {
                 Log.w(TAG, "Background sensor capture failed: ${e.message}")
             }
         }
     }
 
-    fun stopAndSave(tag: String = "", title: String = "") {
+    /** 停止录音，进入 ReadyToSave，等用户选择保存或取消 */
+    fun stopRecording() {
         val evidenceId = currentEvidenceId
         if (evidenceId.isEmpty()) return
         durationJob?.cancel()
 
-        // 发送停止指令给前台服务，Service 收到后同步执行 stop()+release() 写盘
         val stopIntent = Intent(context, AudioRecordService::class.java).apply {
             action = AudioRecordService.ACTION_STOP
         }
         context.startService(stopIntent)
 
         viewModelScope.launch {
+            _uiState.value = AudioUiState.Stopping
+            captureJob?.join()
+            delay(500)
+            val audioPath = FileHelper.getAudioFile(context, evidenceId).absolutePath
+            _uiState.value = AudioUiState.ReadyToSave(evidenceId, audioPath)
+        }
+    }
+
+    /** 用户点保存：写数据库 */
+    fun saveRecording(tag: String = "", title: String = "") {
+        val state = _uiState.value as? AudioUiState.ReadyToSave ?: return
+        val evidenceId = state.evidenceId
+        val audioPath = state.audioPath
+
+        viewModelScope.launch {
             _uiState.value = AudioUiState.Saving
             try {
-                // 等待后台传感器采集完成
-                captureJob?.join()
-
-                // 等待 AudioRecordService 完成 MediaRecorder.stop()+release() 写盘
-                // Service 的 onStartCommand 在主线程同步执行，500ms 足够其完成文件写入
-                // 此时 UI 已显示"保存中..."，用户无感知
-                delay(500)
-
-                val audioPath = FileHelper.getAudioFile(context, evidenceId).absolutePath
                 val hash = withContext(Dispatchers.IO) { HashUtil.hashFile(audioPath) }
                 val snapshot = pendingSnapshot
                 val evidence = Evidence(
@@ -136,17 +137,14 @@ class RecordAudioViewModel @Inject constructor(
                     mediaType = MediaType.AUDIO,
                     mediaPath = audioPath,
                     tag = tag,
-                    title = title,
+                    title = title.ifBlank { evidenceId },
                     sha256Hash = hash,
                     createdAt = snapshot?.capturedAt ?: System.currentTimeMillis(),
                     snapshotId = evidenceId
                 )
-                // 先写 evidence，再写 snapshot，满足外键约束
                 evidenceRepository.save(evidence)
                 snapshot?.let { snapshotRepository.insert(it) }
-                Log.i(TAG, "Audio saved: $evidenceId, hash=$hash")
-
-                // 异步回填地址和天气
+                Log.i(TAG, "Audio saved: $evidenceId")
                 launch(Dispatchers.IO) {
                     val lat = snapshot?.latitude ?: 0.0
                     val lng = snapshot?.longitude ?: 0.0
@@ -158,6 +156,13 @@ class RecordAudioViewModel @Inject constructor(
                 _uiState.value = AudioUiState.Error(e.message ?: "保存失败")
             }
         }
+    }
+
+    /** 用户点取消：删除录音文件，重置状态 */
+    fun cancelAndDelete() {
+        val state = _uiState.value as? AudioUiState.ReadyToSave
+        state?.let { File(it.audioPath).delete() }
+        resetState()
     }
 
     fun setDisguiseMode(mode: DisguiseMode) {

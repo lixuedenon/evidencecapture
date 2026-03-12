@@ -34,7 +34,10 @@ import coil.compose.AsyncImage
 import com.mathsnew.evidencecapture.domain.model.MediaType
 import com.mathsnew.evidencecapture.presentation.capture.SnapshotCard
 import com.mathsnew.evidencecapture.util.ExportHelper
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -58,11 +61,13 @@ fun EvidenceDetailScreen(
         onDispose { viewModel.stopAudio() }
     }
 
-    val uiState       by viewModel.uiState.collectAsState()
+    val uiState        by viewModel.uiState.collectAsState()
     val audioPlayState by viewModel.audioPlayState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     var showExportMenu by remember { mutableStateOf(false) }
     var isExporting    by remember { mutableStateOf(false) }
+    var isSharing      by remember { mutableStateOf(false) }
 
     // 备注编辑弹窗状态
     var showNotesDialog by remember { mutableStateOf(false) }
@@ -89,20 +94,45 @@ fun EvidenceDetailScreen(
                             )
                         }
 
-                        // 分享按钮
-                        IconButton(onClick = {
-                            val intent = ExportHelper.getShareIntent(context, state.evidence)
-                            if (intent != null) {
-                                context.startActivity(
-                                    android.content.Intent.createChooser(intent, "分享证据")
+                        // 分享按钮 → 协程里生成HTML，不阻塞主线程
+                        IconButton(
+                            onClick = {
+                                if (!isSharing) {
+                                    coroutineScope.launch {
+                                        isSharing = true
+                                        val htmlFile = withContext(Dispatchers.IO) {
+                                            ExportHelper.exportToHtml(
+                                                context, state.evidence, state.snapshot
+                                            )
+                                        }
+                                        isSharing = false
+                                        if (htmlFile != null) {
+                                            val intent = ExportHelper.getHtmlShareIntent(
+                                                context, htmlFile
+                                            )
+                                            context.startActivity(
+                                                android.content.Intent.createChooser(
+                                                    intent, "分享证据报告"
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            if (isSharing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Share,
+                                    contentDescription = "分享",
+                                    tint = MaterialTheme.colorScheme.onPrimary
                                 )
                             }
-                        }) {
-                            Icon(
-                                Icons.Default.Share,
-                                contentDescription = "分享",
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
                         }
 
                         // 导出按钮
@@ -334,8 +364,6 @@ fun EvidenceDetailScreen(
 
 /**
  * 备注展示卡片
- * 有备注时显示内容 + 编辑按钮
- * 无备注时显示灰色引导文字 + 添加按钮
  */
 @Composable
 private fun NotesCard(
@@ -394,7 +422,6 @@ private fun NotesCard(
 
 /**
  * 备注编辑弹窗
- * 只编辑备注文字，多行输入
  */
 @Composable
 private fun NotesEditDialog(
@@ -430,9 +457,10 @@ private fun NotesEditDialog(
 
 /**
  * 内置视频播放器卡片
- * 未播放时显示第一帧缩略图 + 居中播放按钮
- * 播放时显示 ExoPlayer 内嵌播放器，含进度条控件
- * 右上角全屏按钮切换横屏/竖屏
+ *
+ * 全屏实现：用 Dialog 覆盖整个屏幕，脱离 Column 布局层级，真正填满全屏
+ * ExoPlayer 实例共享，全屏切换不重建、不重头播放
+ * 全屏时隐藏普通卡片，避免两个 PlayerView 同时绑定同一 ExoPlayer
  */
 @Composable
 private fun VideoPlayerCard(videoPath: String) {
@@ -448,110 +476,53 @@ private fun VideoPlayerCard(videoPath: String) {
             try {
                 val retriever = MediaMetadataRetriever()
                 retriever.setDataSource(videoPath)
-                val bmp = retriever.getFrameAtTime(
-                    0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC
-                )
+                val bmp = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                 retriever.release()
                 bmp
             } catch (e: Exception) { null }
         }
     }
 
-    val exoPlayer = remember(isPlaying) {
-        if (isPlaying) {
-            ExoPlayer.Builder(context).build().apply {
-                setMediaItem(MediaItem.fromUri(videoPath))
-                prepare()
-                playWhenReady = true
-            }
-        } else null
+    val exoPlayer = remember(videoPath) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoPath))
+            prepare()
+            playWhenReady = false
+        }
     }
 
-    DisposableEffect(exoPlayer) {
-        onDispose { exoPlayer?.release() }
+    LaunchedEffect(isPlaying) {
+        exoPlayer.playWhenReady = isPlaying
     }
 
-    LaunchedEffect(isFullscreen) {
-        activity?.requestedOrientation = if (isFullscreen)
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        else
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    DisposableEffect(videoPath) {
+        onDispose {
+            exoPlayer.release()
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
     }
 
-    Card(modifier = if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth()) {
-        Box(
-            modifier = if (isFullscreen)
-                Modifier.fillMaxSize().background(Color.Black)
-            else
-                Modifier.fillMaxWidth()
+    // ── 全屏 Dialog ───────────────────────────────────────────
+    if (isFullscreen) {
+        Dialog(
+            onDismissRequest = {
+                isFullscreen = false
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false
+            )
         ) {
-            if (!isPlaying) {
-                // 缩略图 + 播放按钮
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (thumbnail != null) {
-                        Image(
-                            bitmap = thumbnail!!.asImageBitmap(),
-                            contentDescription = "视频缩略图",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.3f))
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black)
-                        )
-                    }
-                    IconButton(
-                        onClick = { isPlaying = true },
-                        modifier = Modifier.size(72.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.PlayCircle,
-                            contentDescription = "播放视频",
-                            modifier = Modifier.size(72.dp),
-                            tint = Color.White
-                        )
-                    }
-                }
-                // 视频标签（左下角）
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(8.dp),
-                    color = Color.Black.copy(alpha = 0.55f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Videocam,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "视频证据",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            } else {
-                // ExoPlayer 内嵌播放器
+            LaunchedEffect(Unit) {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            ) {
                 AndroidView(
                     factory = { ctx ->
                         PlayerView(ctx).apply {
@@ -559,32 +530,119 @@ private fun VideoPlayerCard(videoPath: String) {
                             useController = true
                         }
                     },
-                    modifier = if (isFullscreen) Modifier.fillMaxSize()
-                    else Modifier.fillMaxWidth().height(220.dp)
+                    update = { it.player = exoPlayer },
+                    modifier = Modifier.fillMaxSize()
                 )
-                // 全屏切换按钮（右上角）
                 IconButton(
-                    onClick = { isFullscreen = !isFullscreen },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
+                    onClick = {
+                        isFullscreen = false
+                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                 ) {
                     Icon(
-                        imageVector = if (isFullscreen) Icons.Default.FullscreenExit
-                        else Icons.Default.Fullscreen,
-                        contentDescription = if (isFullscreen) "退出全屏" else "全屏",
+                        Icons.Default.FullscreenExit,
+                        contentDescription = "退出全屏",
                         tint = Color.White
                     )
                 }
             }
         }
     }
+
+    // ── 普通卡片（全屏时隐藏）────────────────────────────────
+    if (!isFullscreen) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                if (!isPlaying) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(220.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (thumbnail != null) {
+                            Image(
+                                bitmap = thumbnail!!.asImageBitmap(),
+                                contentDescription = "视频缩略图",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f))
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black)
+                            )
+                        }
+                        IconButton(
+                            onClick = { isPlaying = true },
+                            modifier = Modifier.size(72.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PlayCircle,
+                                contentDescription = "播放视频",
+                                modifier = Modifier.size(72.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                        color = Color.Black.copy(alpha = 0.55f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Videocam,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                "视频证据",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                } else {
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = true
+                            }
+                        },
+                        update = { it.player = exoPlayer },
+                        modifier = Modifier.fillMaxWidth().height(220.dp)
+                    )
+                    IconButton(
+                        onClick = { isFullscreen = true },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Fullscreen,
+                            contentDescription = "全屏",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 /**
  * 音频播放卡片
- * 含播放/暂停/停止、进度条、时长显示
- * 被"录音取证"和"拍照语音备注"复用
  */
 @Composable
 private fun AudioPlayerCard(

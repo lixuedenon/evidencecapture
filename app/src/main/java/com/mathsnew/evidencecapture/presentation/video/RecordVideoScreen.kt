@@ -42,13 +42,13 @@ fun RecordVideoScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
-    // 从独立 StateFlow 获取时长，不依赖 uiState 字段
     val durationSeconds by viewModel.durationSeconds.collectAsState()
 
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
-    // 记录当次录制的 evidenceId，onRecordingStopped 时需要传入
     var currentEvidenceId by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
+    var tag by remember { mutableStateOf("") }
 
     val permissions = rememberMultiplePermissionsState(
         listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
@@ -67,27 +67,7 @@ fun RecordVideoScreen(
     }
 
     val isRecording = uiState is VideoUiState.Recording
-    var showExitDialog by remember { mutableStateOf(false) }
-
-    if (showExitDialog) {
-        AlertDialog(
-            onDismissRequest = { showExitDialog = false },
-            title = { Text("正在录制中") },
-            text = { Text("停止录制并放弃本次录像？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    activeRecording?.stop()
-                    activeRecording = null
-                    viewModel.resetState()
-                    showExitDialog = false
-                    onBack()
-                }) { Text("放弃录制") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) { Text("继续录制") }
-            }
-        )
-    }
+    val isReadyToSave = uiState is VideoUiState.ReadyToSave
 
     Scaffold(
         topBar = {
@@ -95,7 +75,7 @@ fun RecordVideoScreen(
                 title = { Text("录视频取证") },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (isRecording) showExitDialog = true else onBack()
+                        if (uiState is VideoUiState.Idle) onBack()
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
@@ -106,6 +86,41 @@ fun RecordVideoScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
+        },
+        bottomBar = {
+            // 录完后显示保存/取消按钮
+            if (isReadyToSave) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.cancelAndDelete()
+                            onBack()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("取消")
+                    }
+                    Button(
+                        onClick = { viewModel.saveRecording(tag = tag, title = title) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("保存录像")
+                    }
+                }
+            }
         }
     ) { padding ->
         Box(
@@ -125,20 +140,57 @@ fun RecordVideoScreen(
                     }
                 }
             } else {
-                // 相机预览
-                AndroidView(
-                    factory = { ctx ->
-                        val previewView = PreviewView(ctx)
-                        bindVideoCamera(ctx, lifecycleOwner, previewView) { capture ->
-                            videoCapture = capture
-                        }
-                        previewView
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                // 相机预览（录完后隐藏，改为显示完成状态）
+                if (!isReadyToSave) {
+                    AndroidView(
+                        factory = { ctx ->
+                            val previewView = PreviewView(ctx)
+                            bindVideoCamera(ctx, lifecycleOwner, previewView) { capture ->
+                                videoCapture = capture
+                            }
+                            previewView
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // 录完后显示完成提示
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "录像完成",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "请选择保存或取消",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("标题（可选）") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                }
 
-                // 录制中顶部状态栏，使用 durationSeconds StateFlow
-                if (uiState is VideoUiState.Recording) {
+                // 录制中顶部时长状态栏
+                if (isRecording) {
                     val min = durationSeconds / 60
                     val sec = durationSeconds % 60
                     Surface(
@@ -168,75 +220,79 @@ fun RecordVideoScreen(
                     }
                 }
 
-                // 底部录制按钮
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 48.dp)
-                ) {
-                    when (uiState) {
-                        is VideoUiState.Idle -> {
-                            FloatingActionButton(
-                                onClick = {
-                                    val evidenceId = EvidenceIdGenerator.generate()
-                                    currentEvidenceId = evidenceId
-                                    startVideoRecording(
-                                        context = context,
-                                        videoCapture = videoCapture,
-                                        evidenceId = evidenceId,
-                                        onStarted = {
-                                            viewModel.onRecordingStarted(evidenceId)
-                                        },
-                                        onRecording = { recording ->
-                                            activeRecording = recording
-                                        },
-                                        onFinalized = { videoPath ->
-                                            // 传入 evidenceId 和 videoPath，修复之前只传一个参数的 bug
-                                            viewModel.onRecordingStopped(
-                                                evidenceId = currentEvidenceId,
-                                                videoPath = videoPath
-                                            )
-                                        },
-                                        onError = { error ->
-                                            Log.e("RecordVideoScreen", "Recording error: $error")
-                                            viewModel.resetState()
-                                        }
+                // 录制按钮（仅 Idle 和 Recording 时显示）
+                if (!isReadyToSave && uiState !is VideoUiState.Saving) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 48.dp)
+                    ) {
+                        when (uiState) {
+                            is VideoUiState.Idle -> {
+                                FloatingActionButton(
+                                    onClick = {
+                                        val evidenceId = EvidenceIdGenerator.generate()
+                                        currentEvidenceId = evidenceId
+                                        startVideoRecording(
+                                            context = context,
+                                            videoCapture = videoCapture,
+                                            evidenceId = evidenceId,
+                                            onStarted = {
+                                                viewModel.onRecordingStarted(evidenceId)
+                                            },
+                                            onRecording = { recording ->
+                                                activeRecording = recording
+                                            },
+                                            onFinalized = { videoPath ->
+                                                viewModel.onRecordingStopped(
+                                                    evidenceId = currentEvidenceId,
+                                                    videoPath = videoPath
+                                                )
+                                            },
+                                            onError = { error ->
+                                                Log.e("RecordVideoScreen", "Recording error: $error")
+                                                viewModel.resetState()
+                                            }
+                                        )
+                                    },
+                                    containerColor = Color.Red
+                                ) {
+                                    Icon(
+                                        Icons.Default.FiberManualRecord,
+                                        contentDescription = "开始录制",
+                                        modifier = Modifier.size(32.dp),
+                                        tint = Color.White
                                     )
-                                },
-                                containerColor = Color.Red
-                            ) {
-                                Icon(
-                                    Icons.Default.FiberManualRecord,
-                                    contentDescription = "开始录制",
-                                    modifier = Modifier.size(32.dp),
-                                    tint = Color.White
-                                )
+                                }
                             }
-                        }
-                        is VideoUiState.Recording -> {
-                            FloatingActionButton(
-                                onClick = {
-                                    activeRecording?.stop()
-                                    activeRecording = null
-                                },
-                                containerColor = Color.White
-                            ) {
-                                Icon(
-                                    Icons.Default.Stop,
-                                    contentDescription = "停止录制",
-                                    modifier = Modifier.size(32.dp),
-                                    tint = Color.Red
-                                )
+                            is VideoUiState.Recording -> {
+                                FloatingActionButton(
+                                    onClick = {
+                                        activeRecording?.stop()
+                                        activeRecording = null
+                                    },
+                                    containerColor = Color.White
+                                ) {
+                                    Icon(
+                                        Icons.Default.Stop,
+                                        contentDescription = "停止录制",
+                                        modifier = Modifier.size(32.dp),
+                                        tint = Color.Red
+                                    )
+                                }
                             }
+                            else -> {}
                         }
-                        is VideoUiState.Saving -> {
-                            CircularProgressIndicator(color = Color.White)
-                        }
-                        else -> {}
                     }
                 }
 
-                // 错误提示
+                if (uiState is VideoUiState.Saving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 if (uiState is VideoUiState.Error) {
                     Snackbar(
                         modifier = Modifier

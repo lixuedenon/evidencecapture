@@ -121,14 +121,14 @@ class TextNoteViewModel @Inject constructor(
                     mediaPath = "",
                     textContent = content,
                     tag = tag,
-                    title = title,
+                    // 用户未填标题时，默认用 evidenceId 作为标题
+                    title = title.ifBlank { evidenceId },
                     sha256Hash = "",
                     createdAt = snapshot.capturedAt,
                     snapshotId = evidenceId
                 )
                 evidenceRepository.save(evidence)
                 Log.i(TAG, "Text note saved: $evidenceId")
-                // 异步回填地址和天气
                 launch(Dispatchers.IO) {
                     sensorCapture.fetchAndFillAsync(
                         evidenceId, snapshot.latitude, snapshot.longitude
