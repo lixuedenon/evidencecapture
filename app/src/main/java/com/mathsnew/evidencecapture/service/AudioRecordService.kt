@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/service/AudioRecordService.kt
-// Kotlin - 服务层，前台录音服务，支持后台持续录音不被系统杀死
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.service
 

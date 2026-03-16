@@ -34,6 +34,7 @@ import coil.compose.AsyncImage
 import com.mathsnew.evidencecapture.domain.model.MediaType
 import com.mathsnew.evidencecapture.presentation.capture.SnapshotCard
 import com.mathsnew.evidencecapture.util.ExportHelper
+import com.mathsnew.evidencecapture.util.PdfReportBuilder
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,8 @@ import java.util.Locale
 fun EvidenceDetailScreen(
     evidenceId: String,
     onBack: () -> Unit,
+    // 新增：导出 PDF 后跳转到 PDF 查看页
+    onNavigatePdfViewer: (pdfPath: String, title: String) -> Unit = { _, _ -> },
     viewModel: EvidenceDetailViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -65,11 +68,10 @@ fun EvidenceDetailScreen(
     val audioPlayState by viewModel.audioPlayState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
-    var showExportMenu by remember { mutableStateOf(false) }
-    var isExporting    by remember { mutableStateOf(false) }
-    var isSharing      by remember { mutableStateOf(false) }
-
-    // 备注编辑弹窗状态
+    var showExportMenu  by remember { mutableStateOf(false) }
+    var isExporting     by remember { mutableStateOf(false) }
+    var isSharing       by remember { mutableStateOf(false) }
+    var isExportingPdf  by remember { mutableStateOf(false) }
     var showNotesDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -94,7 +96,7 @@ fun EvidenceDetailScreen(
                             )
                         }
 
-                        // 分享按钮 → 协程里生成HTML，不阻塞主线程
+                        // 分享按钮 → 生成 HTML 后调用系统分享
                         IconButton(
                             onClick = {
                                 if (!isSharing) {
@@ -135,10 +137,10 @@ fun EvidenceDetailScreen(
                             }
                         }
 
-                        // 导出按钮
+                        // 导出按钮（ZIP + PDF）
                         Box {
                             IconButton(onClick = { showExportMenu = true }) {
-                                if (isExporting) {
+                                if (isExporting || isExportingPdf) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(20.dp),
                                         strokeWidth = 2.dp,
@@ -156,6 +158,7 @@ fun EvidenceDetailScreen(
                                 expanded = showExportMenu,
                                 onDismissRequest = { showExportMenu = false }
                             ) {
+                                // ZIP 导出
                                 DropdownMenuItem(
                                     text = { Text("导出为 ZIP 压缩包") },
                                     leadingIcon = {
@@ -165,9 +168,7 @@ fun EvidenceDetailScreen(
                                         showExportMenu = false
                                         isExporting = true
                                         val zipFile = ExportHelper.exportToZip(
-                                            context,
-                                            state.evidence,
-                                            state.snapshot
+                                            context, state.evidence, state.snapshot
                                         )
                                         isExporting = false
                                         if (zipFile != null) {
@@ -179,6 +180,37 @@ fun EvidenceDetailScreen(
                                                     intent, "导出证据包"
                                                 )
                                             )
+                                        }
+                                    }
+                                )
+                                // PDF 查看（生成后在 App 内查看，查看页内可再分享）
+                                DropdownMenuItem(
+                                    text = { Text("查看 PDF 报告") },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.PictureAsPdf,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showExportMenu = false
+                                        coroutineScope.launch {
+                                            isExportingPdf = true
+                                            val pdfFile = withContext(Dispatchers.IO) {
+                                                PdfReportBuilder.build(
+                                                    context, state.evidence, state.snapshot
+                                                )
+                                            }
+                                            isExportingPdf = false
+                                            if (pdfFile != null) {
+                                                // 导航到 App 内 PDF 查看页
+                                                val pdfTitle = state.evidence.title
+                                                    .ifEmpty { state.evidence.id }
+                                                onNavigatePdfViewer(
+                                                    pdfFile.absolutePath,
+                                                    pdfTitle
+                                                )
+                                            }
                                         }
                                     }
                                 )
@@ -195,7 +227,6 @@ fun EvidenceDetailScreen(
         }
     ) { padding ->
 
-        // ── 备注编辑弹窗 ────────────────────────────────────
         if (showNotesDialog && uiState is DetailUiState.Success) {
             val state = uiState as DetailUiState.Success
             NotesEditDialog(
@@ -203,9 +234,9 @@ fun EvidenceDetailScreen(
                 onDismiss = { showNotesDialog = false },
                 onConfirm = { newNotes ->
                     viewModel.updateMeta(
-                        id = state.evidence.id,
+                        id    = state.evidence.id,
                         title = state.evidence.title,
-                        tag = state.evidence.tag,
+                        tag   = state.evidence.tag,
                         notes = newNotes
                     )
                     showNotesDialog = false
@@ -236,7 +267,6 @@ fun EvidenceDetailScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 证据基本信息
                     Text(
                         text = evidence.id,
                         style = MaterialTheme.typography.labelSmall,
@@ -257,7 +287,6 @@ fun EvidenceDetailScreen(
                         AssistChip(onClick = {}, label = { Text(evidence.tag) })
                     }
 
-                    // 媒体内容区域
                     when (evidence.mediaType) {
                         MediaType.PHOTO -> {
                             AsyncImage(
@@ -278,8 +307,8 @@ fun EvidenceDetailScreen(
                                     onTogglePlay = {
                                         viewModel.togglePlay(evidence.voiceNotePath, "语音备注")
                                     },
-                                    onStop = { viewModel.stopAudio() },
-                                    onSeek = { viewModel.seekTo(it) }
+                                    onStop  = { viewModel.stopAudio() },
+                                    onSeek  = { viewModel.seekTo(it) }
                                 )
                             }
                         }
@@ -291,8 +320,8 @@ fun EvidenceDetailScreen(
                                 onTogglePlay = {
                                     viewModel.togglePlay(evidence.mediaPath, "录音")
                                 },
-                                onStop = { viewModel.stopAudio() },
-                                onSeek = { viewModel.seekTo(it) }
+                                onStop  = { viewModel.stopAudio() },
+                                onSeek  = { viewModel.seekTo(it) }
                             )
                         }
                         MediaType.VIDEO -> {
@@ -309,13 +338,11 @@ fun EvidenceDetailScreen(
                         }
                     }
 
-                    // 备注卡片（有备注显示内容，无备注显示引导提示）
                     NotesCard(
                         notes = evidence.notes,
                         onEditClick = { showNotesDialog = true }
                     )
 
-                    // 哈希完整性验证卡片
                     if (evidence.sha256Hash.isNotEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -354,7 +381,6 @@ fun EvidenceDetailScreen(
                         }
                     }
 
-                    // 环境数据快照卡片
                     state.snapshot?.let { SnapshotCard(snapshot = it) }
                 }
             }
@@ -362,9 +388,6 @@ fun EvidenceDetailScreen(
     }
 }
 
-/**
- * 备注展示卡片
- */
 @Composable
 private fun NotesCard(
     notes: String,
@@ -392,10 +415,7 @@ private fun NotesCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 if (notes.isNotEmpty()) {
-                    Text(
-                        text = notes,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text(text = notes, style = MaterialTheme.typography.bodyMedium)
                 } else {
                     Text(
                         text = "点击右侧按钮添加备注",
@@ -409,8 +429,7 @@ private fun NotesCard(
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    imageVector = if (notes.isEmpty()) Icons.Default.Add
-                    else Icons.Default.Edit,
+                    imageVector = if (notes.isEmpty()) Icons.Default.Add else Icons.Default.Edit,
                     contentDescription = if (notes.isEmpty()) "添加备注" else "编辑备注",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
@@ -420,9 +439,6 @@ private fun NotesCard(
     }
 }
 
-/**
- * 备注编辑弹窗
- */
 @Composable
 private fun NotesEditDialog(
     currentNotes: String,
@@ -430,7 +446,6 @@ private fun NotesEditDialog(
     onConfirm: (String) -> Unit
 ) {
     var notes by remember { mutableStateOf(currentNotes) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("编辑备注") },
@@ -457,10 +472,7 @@ private fun NotesEditDialog(
 
 /**
  * 内置视频播放器卡片
- *
- * 全屏实现：用 Dialog 覆盖整个屏幕，脱离 Column 布局层级，真正填满全屏
- * ExoPlayer 实例共享，全屏切换不重建、不重头播放
- * 全屏时隐藏普通卡片，避免两个 PlayerView 同时绑定同一 ExoPlayer
+ * 全屏用 Dialog 覆盖整个屏幕，ExoPlayer 实例共享不重建
  */
 @Composable
 private fun VideoPlayerCard(videoPath: String) {
@@ -476,7 +488,9 @@ private fun VideoPlayerCard(videoPath: String) {
             try {
                 val retriever = MediaMetadataRetriever()
                 retriever.setDataSource(videoPath)
-                val bmp = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                val bmp = retriever.getFrameAtTime(
+                    0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                )
                 retriever.release()
                 bmp
             } catch (e: Exception) { null }
@@ -502,7 +516,6 @@ private fun VideoPlayerCard(videoPath: String) {
         }
     }
 
-    // ── 全屏 Dialog ───────────────────────────────────────────
     if (isFullscreen) {
         Dialog(
             onDismissRequest = {
@@ -511,8 +524,8 @@ private fun VideoPlayerCard(videoPath: String) {
             },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
-                dismissOnBackPress = true,
-                dismissOnClickOutside = false
+                dismissOnBackPress      = true,
+                dismissOnClickOutside   = false
             )
         ) {
             LaunchedEffect(Unit) {
@@ -550,13 +563,14 @@ private fun VideoPlayerCard(videoPath: String) {
         }
     }
 
-    // ── 普通卡片（全屏时隐藏）────────────────────────────────
     if (!isFullscreen) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (!isPlaying) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(220.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (thumbnail != null) {
@@ -591,7 +605,9 @@ private fun VideoPlayerCard(videoPath: String) {
                         }
                     }
                     Surface(
-                        modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp),
                         color = Color.Black.copy(alpha = 0.55f),
                         shape = MaterialTheme.shapes.small
                     ) {
@@ -622,11 +638,15 @@ private fun VideoPlayerCard(videoPath: String) {
                             }
                         },
                         update = { it.player = exoPlayer },
-                        modifier = Modifier.fillMaxWidth().height(220.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
                     )
                     IconButton(
                         onClick = { isFullscreen = true },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
                     ) {
                         Icon(
                             Icons.Default.Fullscreen,
@@ -640,10 +660,6 @@ private fun VideoPlayerCard(videoPath: String) {
     }
 }
 
-
-/**
- * 音频播放卡片
- */
 @Composable
 private fun AudioPlayerCard(
     label: String,
@@ -689,8 +705,11 @@ private fun AudioPlayerCard(
                 )
                 if (isThisPlaying || isThisPaused) {
                     IconButton(onClick = onStop) {
-                        Icon(Icons.Default.Stop, contentDescription = "停止",
-                            tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Stop,
+                            contentDescription = "停止",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
                 IconButton(onClick = onTogglePlay) {
@@ -731,8 +750,8 @@ private fun AudioPlayerCard(
 }
 
 private fun formatMs(ms: Int): String {
-    val sec = ms / 1000
-    val min = sec / 60
+    val sec    = ms / 1000
+    val min    = sec / 60
     val remSec = sec % 60
     return "%d:%02d".format(min, remSec)
 }

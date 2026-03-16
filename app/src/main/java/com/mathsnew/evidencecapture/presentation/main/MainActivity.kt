@@ -1,52 +1,74 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/main/MainActivity.kt
-// Kotlin - 表现层，主 Activity，挂载导航图并在启动时申请核心权限
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.presentation.main
 
-import android.Manifest
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.mathsnew.evidencecapture.navigation.AppNavGraph
+import com.mathsnew.evidencecapture.navigation.Routes
+import com.mathsnew.evidencecapture.service.QuickCaptureService
 import com.mathsnew.evidencecapture.ui.theme.EvidenceCaptureTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    /** 启动时申请的核心权限：麦克风 + 精确定位 + Android 13+ 通知 */
-    private val corePermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        results.forEach { (permission, granted) ->
-            android.util.Log.i(TAG, "Permission $permission granted=$granted")
-        }
-    }
+    // navController 提升到 Activity 层，供 onNewIntent 导航使用
+    private var navController: NavController? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestCorePermissions()
+
+        // 启动常驻前台服务（通知栏快捷按钮 + 音量键监听）
+        QuickCaptureService.start(this)
+
         setContent {
             EvidenceCaptureTheme {
-                AppNavGraph()
+                val navCtrl = rememberNavController()
+                navController = navCtrl
+                AppNavGraph(navController = navCtrl)
             }
         }
+
+        // 处理冷启动携带的快速取证 Intent（App 进程未存在时由通知栏/音量键启动）
+        handleQuickCaptureIntent(intent)
     }
 
-    private fun requestCorePermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+    // App 已在后台时，通知栏按钮或音量键触发此回调
+    // launchMode="singleTop" 保证不会重复创建 Activity 实例
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleQuickCaptureIntent(intent)
+    }
+
+    // 根据 Intent Action 导航到对应取证页面
+    // window.decorView.post 延迟一帧，确保 NavController 组合完成后再导航
+    private fun handleQuickCaptureIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        window.decorView.post {
+            when (action) {
+                QuickCaptureService.ACTION_QUICK_AUDIO -> {
+                    navController?.navigate(Routes.RECORD_AUDIO) {
+                        launchSingleTop = true
+                    }
+                }
+                QuickCaptureService.ACTION_QUICK_VIDEO -> {
+                    navController?.navigate(Routes.RECORD_VIDEO) {
+                        launchSingleTop = true
+                    }
+                }
+                QuickCaptureService.ACTION_QUICK_PHOTO -> {
+                    navController?.navigate(Routes.CAPTURE_PHOTO) {
+                        launchSingleTop = true
+                    }
+                }
+            }
         }
-        corePermissionLauncher.launch(permissions.toTypedArray())
-    }
-
-    companion object {
-        private const val TAG = "MainActivity"
     }
 }

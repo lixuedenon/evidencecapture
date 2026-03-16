@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- app/src/main/AndroidManifest.xml -->
+<!-- 修改文件 - XML -->
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -29,11 +31,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.EvidenceCapture">
 
+        <!--
+            launchMode="singleTop"：通知栏/音量键触发时不重复创建 Activity
+            screenOrientation 不在此处锁定，由各页面代码动态控制：
+              - 录音/录像/拍照页：竖屏
+              - 视频全屏播放：横屏（VideoPlayerCard 里 requestedOrientation 动态切换）
+            configChanges 声明后方向切换不触发 Activity 重建，由 Compose 自行处理布局
+        -->
         <activity
             android:name=".presentation.main.MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize">
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -42,6 +51,13 @@
 
         <service
             android:name=".service.AudioRecordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- 通知栏快捷取证按钮 + 音量下键连按3次触发录音 -->
+        <service
+            android:name=".service.QuickCaptureService"
+            android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone" />
 

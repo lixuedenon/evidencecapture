@@ -110,10 +110,8 @@ object ExportHelper {
         val hashColor = if (evidence.sha256Hash.isNotEmpty()) "#27ae60" else "#95a5a6"
         val hashLabel = if (evidence.sha256Hash.isNotEmpty()) "✓ 完整性已记录" else "未计算"
 
-        // ── 媒体区域 HTML ──────────────────────────────────────
-        val mediaHtml = buildMediaHtml(evidence)
+        val mediaHtml  = buildMediaHtml(evidence)
 
-        // ── 语音备注 HTML ──────────────────────────────────────
         val voiceHtml = if (evidence.voiceNotePath.isNotEmpty() &&
             File(evidence.voiceNotePath).exists()
         ) {
@@ -131,7 +129,6 @@ object ExportHelper {
             """.trimIndent()
         } else ""
 
-        // ── 文字备注 ───────────────────────────────────────────
         val notesHtml = if (evidence.notes.isNotEmpty()) """
             <div class="section">
               <div class="section-title">📌 备注</div>
@@ -139,7 +136,6 @@ object ExportHelper {
             </div>
         """.trimIndent() else ""
 
-        // ── 环境数据 ───────────────────────────────────────────
         val envHtml = buildEnvHtml(snapshot)
 
         return """
@@ -185,6 +181,8 @@ object ExportHelper {
   .notes-content { font-size: 14px; line-height: 1.7; color: #444; }
   .text-content { font-size: 15px; line-height: 1.8; color: #333;
                   background: #f8f9fa; border-radius: 8px; padding: 14px; }
+  .ntp-fallback { font-size: 11px; color: #e67e22; font-weight: normal;
+                  display: block; margin-top: 2px; }
   img.evidence-img { width: 100%; border-radius: 8px; display: block; }
   video.evidence-video { width: 100%; border-radius: 8px; display: block; }
   audio { width: 100%; margin-top: 4px; }
@@ -210,16 +208,10 @@ object ExportHelper {
   </div>
   """.trimIndent() else ""}
 
-  <!-- 媒体内容 -->
   $mediaHtml
-
-  <!-- 语音备注 -->
   $voiceHtml
-
-  <!-- 文字备注 -->
   $notesHtml
 
-  <!-- 完整性 -->
   <div class="section">
     <div class="section-title">🔒 文件完整性</div>
     <div class="integrity-bar">
@@ -233,7 +225,6 @@ object ExportHelper {
     </div>
   </div>
 
-  <!-- 环境数据 -->
   $envHtml
 
   <div class="footer">
@@ -308,8 +299,21 @@ object ExportHelper {
         if (snapshot == null) return ""
 
         val timeStr = dateFmt.format(Date(snapshot.capturedAt))
-        val ntpStr  = if (snapshot.networkTime > 0)
-            dateFmt.format(Date(snapshot.networkTime)) else "获取失败"
+
+        // networkTime 为 0 表示 NTP 获取失败，fallback 到设备时间并加注说明
+        // 与 EvidenceDetailScreen 详情页保持一致：都展示一个有意义的时间值
+        val ntpHtml = if (snapshot.networkTime > 0) {
+            """
+            <div class="env-value" style="font-size:13px">${dateFmt.format(Date(snapshot.networkTime))}</div>
+            """.trimIndent()
+        } else {
+            """
+            <div class="env-value" style="font-size:13px">
+              ${dateFmt.format(Date(snapshot.capturedAt))}
+              <span class="ntp-fallback">⚠ NTP获取失败，显示设备时间</span>
+            </div>
+            """.trimIndent()
+        }
 
         val gpsHtml = if (snapshot.latitude != 0.0 || snapshot.longitude != 0.0) {
             val mapsUrl = "https://maps.google.com/?q=${snapshot.latitude},${snapshot.longitude}"
@@ -371,7 +375,7 @@ object ExportHelper {
             </div>
             <div class="env-item">
               <div class="env-label">🌐 NTP网络时间</div>
-              <div class="env-value" style="font-size:13px">$ntpStr</div>
+              $ntpHtml
             </div>
 
             <div class="env-item">
@@ -403,10 +407,6 @@ object ExportHelper {
     // 分享 Intent
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * 获取 HTML 报告分享 Intent
-     * 调用方式：生成HTML → 调此函数 → startActivity(createChooser)
-     */
     fun getHtmlShareIntent(context: Context, htmlFile: File): Intent {
         val uri = FileProvider.getUriForFile(
             context,
@@ -416,13 +416,11 @@ object ExportHelper {
         return Intent(Intent.ACTION_SEND).apply {
             type = "text/html"
             putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TEXT, "请下载后用 Chrome 等浏览器打开查看完整取证报告")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
 
-    /**
-     * 获取媒体文件直接分享 Intent（保留原有功能）
-     */
     fun getShareIntent(context: Context, evidence: Evidence): Intent? {
         val path = if (evidence.mediaPath.isNotEmpty()) evidence.mediaPath else return null
         val file = File(path).takeIf { it.exists() } ?: return null
@@ -443,9 +441,6 @@ object ExportHelper {
         }
     }
 
-    /**
-     * 获取 ZIP 导出分享 Intent（保留原有功能）
-     */
     fun getZipShareIntent(context: Context, zipFile: File): Intent {
         val uri = FileProvider.getUriForFile(
             context, "${context.packageName}.fileprovider", zipFile

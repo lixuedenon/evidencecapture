@@ -1,11 +1,14 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/main/MainScreen.kt
-// Kotlin - 表现层，主页，鲜明色彩+立体卡片风格，含向左滑动编辑/删除功能
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.presentation.main
 
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -29,7 +32,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -38,15 +44,19 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.mathsnew.evidencecapture.domain.model.Evidence
 import com.mathsnew.evidencecapture.domain.model.MediaType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-// ── 主题色定义 ──────────────────────────────────────────────
+// ── 主题色 ───────────────────────────────────────────────────
 private val NavyDeep   = Color(0xFF1A237E)
 private val NavyMid    = Color(0xFF283593)
 private val AccentBlue = Color(0xFF42A5F5)
@@ -68,6 +78,18 @@ private val presetTags = listOf(
     "租房纠纷", "交通事故", "职场纠纷", "家庭纠纷",
     "消费欺诈", "人身安全", "财产纠纷", "其他"
 )
+
+// 日期分组格式
+private val dateGroupFmt = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
+private val timeFmt      = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+// 将证据列表按日期分组，返回有序的 (日期字符串 -> 证据列表) 列表
+private fun groupByDate(list: List<Evidence>): List<Pair<String, List<Evidence>>> {
+    return list
+        .groupBy { dateGroupFmt.format(Date(it.createdAt)) }
+        .entries
+        .map { it.key to it.value }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -91,6 +113,9 @@ fun MainScreen(
     var showBatchDeleteConfirm by remember { mutableStateOf(false) }
     var showEditDialog         by remember { mutableStateOf(false) }
     var editingEvidence        by remember { mutableStateOf<Evidence?>(null) }
+
+    // 按日期分组后的列表
+    val groupedList = remember(evidenceList) { groupByDate(evidenceList) }
 
     if (showDeleteConfirm && pendingDeleteEvidence != null) {
         AlertDialog(
@@ -135,7 +160,7 @@ fun MainScreen(
 
     if (showEditDialog && editingEvidence != null) {
         EditEvidenceDialog(
-            evidence = editingEvidence!!,
+            evidence  = editingEvidence!!,
             onDismiss = {
                 showEditDialog = false
                 editingEvidence = null
@@ -264,8 +289,7 @@ fun MainScreen(
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (selected) Color.Transparent
-                                else Color(0xFFDDE3F0),
+                                color = if (selected) Color.Transparent else Color(0xFFDDE3F0),
                                 shape = RoundedCornerShape(20.dp)
                             )
                             .combinedClickable(onClick = { viewModel.setFilterType(type) })
@@ -298,10 +322,10 @@ fun MainScreen(
                 ).forEach { (icon, label, colorAction) ->
                     val (color, action) = colorAction
                     ActionButton(
-                        icon     = icon,
-                        label    = label,
-                        color    = color,
-                        onClick  = action,
+                        icon    = icon,
+                        label   = label,
+                        color   = color,
+                        onClick = action,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -309,7 +333,7 @@ fun MainScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── 证据列表 ──────────────────────────────────────
+            // ── 证据九宫格（按日期分组）─────────────────────────
             if (evidenceList.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -338,33 +362,69 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(items = evidenceList, key = { it.id }) { evidence ->
-                        val isSelected = selectedIds.contains(evidence.id)
-                        if (isSelectionMode) {
-                            EvidenceCard(
-                                evidence   = evidence,
-                                isSelected = isSelected,
-                                modifier   = Modifier.combinedClickable(
-                                    onClick = { viewModel.toggleSelection(evidence.id) }
+                    groupedList.forEach { (dateLabel, items) ->
+                        // 日期分组标题
+                        stickyHeader(key = "header_$dateLabel") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF0F4FF))
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = dateLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = NavyMid
                                 )
-                            )
-                        } else {
-                            SwipeableEvidenceCard(
-                                evidence = evidence,
-                                onEdit = {
-                                    editingEvidence = evidence
-                                    showEditDialog = true
-                                },
-                                onDelete = {
-                                    pendingDeleteEvidence = evidence
-                                    showDeleteConfirm = true
-                                },
-                                onNavigateDetail = onNavigateDetail,
-                                onLongClick = { viewModel.enterSelectionMode(evidence.id) }
-                            )
+                            }
+                        }
+
+                        // 将当天证据按每行3个分组
+                        val rows = items.chunked(3)
+                        items(
+                            items = rows,
+                            key   = { row -> "row_${row.first().id}" }
+                        ) { row ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                row.forEach { evidence ->
+                                    val isSelected = selectedIds.contains(evidence.id)
+                                    EvidenceGridCell(
+                                        evidence  = evidence,
+                                        isSelected = isSelected,
+                                        modifier  = Modifier.weight(1f),
+                                        onClick   = {
+                                            if (isSelectionMode)
+                                                viewModel.toggleSelection(evidence.id)
+                                            else
+                                                onNavigateDetail(evidence.id)
+                                        },
+                                        onLongClick = {
+                                            viewModel.enterSelectionMode(evidence.id)
+                                        },
+                                        onEdit = {
+                                            editingEvidence = evidence
+                                            showEditDialog = true
+                                        },
+                                        onDelete = {
+                                            pendingDeleteEvidence = evidence
+                                            showDeleteConfirm = true
+                                        }
+                                    )
+                                }
+                                // 末行不足3个时补空格占位，保持对齐
+                                repeat(3 - row.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
                         }
                     }
                 }
@@ -373,7 +433,253 @@ fun MainScreen(
     }
 }
 
-// ── 可左滑展开编辑/删除按钮的卡片 ────────────────────────────
+// ── 九宫格单元格 ──────────────────────────────────────────────
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EvidenceGridCell(
+    evidence:    Evidence,
+    isSelected:  Boolean,
+    modifier:    Modifier = Modifier,
+    onClick:     () -> Unit,
+    onLongClick: () -> Unit,
+    onEdit:      () -> Unit,
+    onDelete:    () -> Unit
+) {
+    val iconColor = mediaIconColor(evidence.mediaType)
+    var showMenu  by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)               // 正方形
+            .padding(2.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White)
+            .then(
+                if (isSelected)
+                    Modifier.border(2.5.dp, iconColor, RoundedCornerShape(10.dp))
+                else Modifier
+            )
+            .combinedClickable(
+                onClick     = onClick,
+                onLongClick = {
+                    if (!isSelected) showMenu = true
+                    onLongClick()
+                }
+            )
+    ) {
+        // 缩略图区域
+        EvidenceThumbnail(
+            evidence  = evidence,
+            iconColor = iconColor,
+            modifier  = Modifier.fillMaxSize()
+        )
+
+        // 左上角类型图标角标
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(4.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = evidence.mediaType.icon(),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(13.dp)
+            )
+        }
+
+        // 多选时右上角勾选圆圈
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(iconColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+
+        // 底部时间 + 标题栏
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.45f))
+                .padding(horizontal = 5.dp, vertical = 3.dp)
+        ) {
+            Column {
+                if (evidence.title.isNotEmpty()) {
+                    Text(
+                        text = evidence.title,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Text(
+                    text = timeFmt.format(Date(evidence.createdAt)),
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 9.sp
+                )
+            }
+        }
+
+        // 长按右键菜单（编辑 / 删除）
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("编辑") },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                onClick = {
+                    showMenu = false
+                    onEdit()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = {
+                    Icon(Icons.Default.Delete, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error)
+                },
+                onClick = {
+                    showMenu = false
+                    onDelete()
+                }
+            )
+        }
+    }
+}
+
+// ── 缩略图加载 ────────────────────────────────────────────────
+@Composable
+private fun EvidenceThumbnail(
+    evidence:  Evidence,
+    iconColor: Color,
+    modifier:  Modifier = Modifier
+) {
+    when (evidence.mediaType) {
+        MediaType.PHOTO -> {
+            // 照片直接用 Coil 加载
+            AsyncImage(
+                model            = evidence.mediaPath,
+                contentDescription = "照片缩略图",
+                contentScale     = ContentScale.Crop,
+                modifier         = modifier
+            )
+        }
+        MediaType.VIDEO -> {
+            // 视频提取第一帧作为缩略图
+            VideoThumbnail(path = evidence.mediaPath, modifier = modifier)
+        }
+        MediaType.AUDIO -> {
+            // 录音显示紫色背景 + 麦克风图标
+            Box(
+                modifier = modifier.background(
+                    Brush.radialGradient(
+                        listOf(Color(0xFFCE93D8), Color(0xFF7B1FA2))
+                    )
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+        }
+        MediaType.TEXT -> {
+            // 文字显示青绿色背景 + 文字图标
+            Box(
+                modifier = modifier.background(
+                    Brush.radialGradient(
+                        listOf(Color(0xFF80CBC4), Color(0xFF00695C))
+                    )
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+        }
+    }
+}
+
+// 视频第一帧缩略图，异步加载避免卡顿
+@Composable
+private fun VideoThumbnail(path: String, modifier: Modifier = Modifier) {
+    var bitmap by remember(path) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(path) {
+        bitmap = withContext(Dispatchers.IO) {
+            try {
+                val retriever = MediaMetadataRetriever()
+                retriever.setDataSource(path)
+                val bmp = retriever.getFrameAtTime(
+                    0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                )
+                retriever.release()
+                bmp
+            } catch (e: Exception) { null }
+        }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap           = bitmap!!.asImageBitmap(),
+            contentDescription = "视频缩略图",
+            contentScale     = ContentScale.Crop,
+            modifier         = modifier
+        )
+        // 视频播放图标水印
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Default.PlayCircle,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.75f),
+                modifier = Modifier.size(32.dp)
+            )
+        }
+    } else {
+        Box(
+            modifier = modifier.background(
+                Brush.radialGradient(listOf(Color(0xFFEF9A9A), Color(0xFFB71C1C)))
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Videocam,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.size(36.dp)
+            )
+        }
+    }
+}
+
+// ── 可左滑展开编辑/删除（列表模式保留，目前九宫格改用长按菜单）──
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeableEvidenceCard(
@@ -383,15 +689,13 @@ private fun SwipeableEvidenceCard(
     onNavigateDetail: (String) -> Unit,
     onLongClick: () -> Unit
 ) {
-    val buttonAreaWidth = 152.dp  // 72 + 4 + 72 + 4
+    val buttonAreaWidth = 152.dp
     val buttonAreaWidthPx = with(LocalDensity.current) { buttonAreaWidth.toPx() }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val isOpen by remember { derivedStateOf { offsetX.value < -buttonAreaWidthPx * 0.5f } }
 
     Box(modifier = Modifier.fillMaxWidth()) {
-
-        // ── 背景：编辑 + 删除按钮（固定在右侧）──────────────
         Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -399,11 +703,9 @@ private fun SwipeableEvidenceCard(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 编辑按钮
             Box(
                 modifier = Modifier
-                    .width(72.dp)
-                    .height(72.dp)
+                    .width(72.dp).height(72.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF1976D2))
                     .combinedClickable(onClick = {
@@ -418,11 +720,9 @@ private fun SwipeableEvidenceCard(
                     Text("编辑", color = Color.White, fontSize = 11.sp)
                 }
             }
-            // 删除按钮
             Box(
                 modifier = Modifier
-                    .width(72.dp)
-                    .height(72.dp)
+                    .width(72.dp).height(72.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFFE53935))
                     .combinedClickable(onClick = {
@@ -439,11 +739,10 @@ private fun SwipeableEvidenceCard(
             }
         }
 
-        // ── 前景：证据卡片（可左滑偏移）─────────────────────
         EvidenceCard(
-            evidence = evidence,
+            evidence   = evidence,
             isSelected = false,
-            modifier = Modifier
+            modifier   = Modifier
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .draggable(
                     orientation = Orientation.Horizontal,
@@ -456,24 +755,17 @@ private fun SwipeableEvidenceCard(
                     },
                     onDragStopped = {
                         scope.launch {
-                            if (offsetX.value < -buttonAreaWidthPx * 0.4f) {
-                                // 超过 40% 则停留在展开位置
+                            if (offsetX.value < -buttonAreaWidthPx * 0.4f)
                                 offsetX.animateTo(-buttonAreaWidthPx, spring())
-                            } else {
-                                // 否则弹回
+                            else
                                 offsetX.animateTo(0f, spring())
-                            }
                         }
                     }
                 )
                 .combinedClickable(
                     onClick = {
-                        if (isOpen) {
-                            // 已展开时点击卡片收回
-                            scope.launch { offsetX.animateTo(0f, spring()) }
-                        } else {
-                            onNavigateDetail(evidence.id)
-                        }
+                        if (isOpen) scope.launch { offsetX.animateTo(0f, spring()) }
+                        else onNavigateDetail(evidence.id)
                     },
                     onLongClick = onLongClick
                 )
@@ -481,14 +773,95 @@ private fun SwipeableEvidenceCard(
     }
 }
 
-/**
- * 编辑证据元数据弹窗
- * 可编辑：标题、场景标签、备注
- * 只读展示：证据ID、类型、创建时间
- */
+// ── 证据列表卡片（多选模式保留）────────────────────────────────
+@Composable
+private fun EvidenceCard(
+    evidence:   Evidence,
+    isSelected: Boolean,
+    modifier:   Modifier = Modifier
+) {
+    val iconColor = mediaIconColor(evidence.mediaType)
+    val bgColor   = if (isSelected) Color(0xFFE8EDFF) else Color.White
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation     = if (isSelected) 2.dp else 5.dp,
+                shape         = RoundedCornerShape(16.dp),
+                ambientColor  = iconColor.copy(alpha = 0.15f),
+                spotColor     = iconColor.copy(alpha = 0.2f)
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .then(
+                if (isSelected)
+                    Modifier.border(2.dp, iconColor.copy(alpha = 0.5f),
+                        RoundedCornerShape(16.dp))
+                else Modifier
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 14.dp, vertical = 13.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .shadow(4.dp, CircleShape, spotColor = iconColor.copy(alpha = 0.3f))
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(iconColor.copy(alpha = 0.25f), iconColor.copy(alpha = 0.08f))
+                        )
+                    )
+                    .border(1.5.dp, iconColor.copy(alpha = 0.3f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null,
+                        tint = iconColor, modifier = Modifier.size(26.dp))
+                } else {
+                    Icon(evidence.mediaType.icon(), contentDescription = null,
+                        tint = iconColor, modifier = Modifier.size(24.dp))
+                }
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (evidence.title.isNotEmpty()) evidence.title else evidence.id,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color(0xFF1A237E)
+                )
+                if (evidence.tag.isNotEmpty()) {
+                    Text(text = evidence.tag, fontSize = 11.sp, color = iconColor,
+                        fontWeight = FontWeight.Medium)
+                }
+                if (evidence.notes.isNotEmpty()) {
+                    Text(text = evidence.notes, fontSize = 11.sp, color = Color(0xFF888888),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(
+                    text = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+                        .format(Date(evidence.createdAt)),
+                    fontSize = 11.sp, color = Color(0xFFAAB4CC)
+                )
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null,
+                tint = Color(0xFFCCD2E8), modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+// ── 编辑弹窗 ──────────────────────────────────────────────────
 @Composable
 private fun EditEvidenceDialog(
-    evidence: Evidence,
+    evidence:  Evidence,
     onDismiss: () -> Unit,
     onConfirm: (title: String, tag: String, notes: String) -> Unit
 ) {
@@ -501,51 +874,35 @@ private fun EditEvidenceDialog(
         title = { Text("编辑证据信息") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // 只读信息
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text(
-                            text = "ID：${evidence.id}",
+                        Text("ID：${evidence.id}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "类型：${evidence.mediaType.name}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("类型：${evidence.mediaType.name}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            text = "时间：${
-                                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                                    .format(Date(evidence.createdAt))
-                            }",
+                            "时间：${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                                .format(Date(evidence.createdAt))}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-
-                // 标题输入
                 OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
+                    value = title, onValueChange = { title = it },
                     label = { Text("标题") },
                     placeholder = { Text("为这条证据起个名字") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                // 场景标签
-                Text(
-                    text = "场景标签",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("场景标签", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(presetTags) { preset ->
                         val selected = tag == preset
@@ -557,23 +914,18 @@ private fun EditEvidenceDialog(
                     }
                 }
                 OutlinedTextField(
-                    value = tag,
-                    onValueChange = { tag = it },
+                    value = tag, onValueChange = { tag = it },
                     label = { Text("自定义标签") },
                     placeholder = { Text("或手动输入标签") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                // 备注输入
                 OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
+                    value = notes, onValueChange = { notes = it },
                     label = { Text("备注") },
                     placeholder = { Text("补充说明事件经过等信息") },
-                    minLines = 3,
-                    maxLines = 5,
+                    minLines = 3, maxLines = 5,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -587,7 +939,7 @@ private fun EditEvidenceDialog(
     )
 }
 
-// ── 操作按钮：立体彩色胶囊 ────────────────────────────────────
+// ── 操作按钮 ──────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ActionButton(
@@ -601,9 +953,7 @@ private fun ActionButton(
         modifier = modifier
             .shadow(6.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.verticalGradient(listOf(color.copy(alpha = 0.92f), color))
-            )
+            .background(Brush.verticalGradient(listOf(color.copy(alpha = 0.92f), color)))
             .combinedClickable(onClick = onClick)
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
@@ -630,112 +980,6 @@ private fun ActionButton(
             Spacer(modifier = Modifier.height(4.dp))
             Text(label, color = Color.White, fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-// ── 证据卡片：立体白卡 ────────────────────────────────────────
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun EvidenceCard(
-    evidence:   Evidence,
-    isSelected: Boolean,
-    modifier:   Modifier = Modifier
-) {
-    val iconColor = mediaIconColor(evidence.mediaType)
-    val bgColor = if (isSelected) Color(0xFFE8EDFF) else Color.White
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = if (isSelected) 2.dp else 5.dp,
-                shape = RoundedCornerShape(16.dp),
-                ambientColor = iconColor.copy(alpha = 0.15f),
-                spotColor = iconColor.copy(alpha = 0.2f)
-            )
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgColor)
-            .then(
-                if (isSelected)
-                    Modifier.border(2.dp, iconColor.copy(alpha = 0.5f),
-                        RoundedCornerShape(16.dp))
-                else Modifier
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 14.dp, vertical = 13.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .shadow(4.dp, CircleShape, spotColor = iconColor.copy(alpha = 0.3f))
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                iconColor.copy(alpha = 0.25f),
-                                iconColor.copy(alpha = 0.08f)
-                            )
-                        )
-                    )
-                    .border(1.5.dp, iconColor.copy(alpha = 0.3f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelected) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null,
-                        tint = iconColor, modifier = Modifier.size(26.dp))
-                } else {
-                    Icon(evidence.mediaType.icon(), contentDescription = null,
-                        tint = iconColor, modifier = Modifier.size(24.dp))
-                }
-            }
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (evidence.title.isNotEmpty()) evidence.title else evidence.id,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color(0xFF1A237E)
-                )
-                if (evidence.tag.isNotEmpty()) {
-                    Text(
-                        text = evidence.tag,
-                        fontSize = 11.sp,
-                        color = iconColor,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                if (evidence.notes.isNotEmpty()) {
-                    Text(
-                        text = evidence.notes,
-                        fontSize = 11.sp,
-                        color = Color(0xFF888888),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Text(
-                    text = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-                        .format(Date(evidence.createdAt)),
-                    fontSize = 11.sp,
-                    color = Color(0xFFAAB4CC)
-                )
-            }
-
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = Color(0xFFCCD2E8),
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }

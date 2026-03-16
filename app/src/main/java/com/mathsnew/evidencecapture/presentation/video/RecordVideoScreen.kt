@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/video/RecordVideoScreen.kt
-// Kotlin - 表现层，录视频取证界面
+// Kotlin - 表现层，录像取证界面，支持 45 秒自动分段录制
 
 package com.mathsnew.evidencecapture.presentation.video
 
@@ -22,11 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.mathsnew.evidencecapture.util.EvidenceIdGenerator
 import com.mathsnew.evidencecapture.util.FileHelper
@@ -43,10 +43,19 @@ fun RecordVideoScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
     val durationSeconds by viewModel.durationSeconds.collectAsState()
+    val segmentIndex by viewModel.segmentIndex.collectAsState()
+    val savedSegmentCount by viewModel.savedSegmentCount.collectAsState()
 
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
+
+    // activeRecording 和 currentEvidenceId 需要在 Screen 层持有，
+    // 因为 CameraX Recording 对象的生命周期由 Composable 管理
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var currentEvidenceId by remember { mutableStateOf("") }
+
+    // 是否是自动分段触发的停止，用于区分 onRecordingStopped 的行为
+    var isAutoSegment by remember { mutableStateOf(false) }
+
     var title by remember { mutableStateOf("") }
     var tag by remember { mutableStateOf("") }
 
@@ -60,6 +69,54 @@ fun RecordVideoScreen(
         }
     }
 
+    // 向 ViewModel 注册录制控制回调，ViewModel 自动分段时通过回调操作 CameraX
+    DisposableEffect(Unit) {
+        viewModel.registerRecordingCallbacks(
+            stopFn = {
+                // ViewModel 触发自动分段停止
+                isAutoSegment = true
+                activeRecording?.stop()
+                activeRecording = null
+            },
+            startFn = { nextEvidenceId ->
+                // ViewModel 触发下一段开始
+                currentEvidenceId = nextEvidenceId
+                startVideoRecording(
+                    context = context,
+                    videoCapture = videoCapture,
+                    evidenceId = nextEvidenceId,
+                    onStarted = {
+                        viewModel.onRecordingStarted(nextEvidenceId)
+                    },
+                    onRecording = { recording ->
+                        activeRecording = recording
+                    },
+                    onFinalized = { videoPath ->
+                        val autoSeg = isAutoSegment
+                        isAutoSegment = false
+                        viewModel.onRecordingStopped(
+                            evidenceId = currentEvidenceId,
+                            videoPath = videoPath,
+                            isAutoSegment = autoSeg
+                        )
+                    },
+                    onError = { error ->
+                        Log.e("RecordVideoScreen", "Auto-segment recording error: $error")
+                        viewModel.resetState()
+                    }
+                )
+            }
+        )
+        onDispose {
+            viewModel.clearRecordingCallbacks()
+        }
+    }
+
+    // 标题或标签变化时同步到 ViewModel，自动分段保存时使用
+    LaunchedEffect(title, tag) {
+        viewModel.updateSessionMeta(tag = tag, title = title)
+    }
+
     LaunchedEffect(uiState) {
         if (uiState is VideoUiState.Saved) {
             onSaved((uiState as VideoUiState.Saved).evidenceId)
@@ -68,6 +125,7 @@ fun RecordVideoScreen(
 
     val isRecording = uiState is VideoUiState.Recording
     val isReadyToSave = uiState is VideoUiState.ReadyToSave
+    val remainingSeconds = RecordVideoViewModel.SEGMENT_MAX_SECONDS - durationSeconds
 
     Scaffold(
         topBar = {
@@ -88,7 +146,7 @@ fun RecordVideoScreen(
             )
         },
         bottomBar = {
-            // 录完后显示保存/取消按钮
+            // 手动停止后显示保存/取消按钮
             if (isReadyToSave) {
                 Row(
                     modifier = Modifier
@@ -153,7 +211,7 @@ fun RecordVideoScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    // 录完后显示完成提示
+                    // 手动停止后显示完成提示
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -172,6 +230,15 @@ fun RecordVideoScreen(
                             text = "录像完成",
                             style = MaterialTheme.typography.headlineSmall
                         )
+                        // 有自动保存的分段时告知用户
+                        if (savedSegmentCount > 0) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "已自动保存 $savedSegmentCount 段，当前为第 $segmentIndex 段",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "请选择保存或取消",
@@ -189,7 +256,7 @@ fun RecordVideoScreen(
                     }
                 }
 
-                // 录制中顶部时长状态栏
+                // 录制中顶部状态栏：显示段序号 + 已录时长 + 剩余倒计时
                 if (isRecording) {
                     val min = durationSeconds / 60
                     val sec = durationSeconds % 60
@@ -203,18 +270,61 @@ fun RecordVideoScreen(
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // 录制指示红点
                             Icon(
                                 Icons.Default.FiberManualRecord,
                                 contentDescription = null,
                                 tint = Color.Red,
                                 modifier = Modifier.size(12.dp)
                             )
+                            // 已录时长
                             Text(
                                 text = "%02d:%02d".format(min, sec),
                                 color = Color.White,
                                 style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "·",
+                                color = Color.White.copy(alpha = 0.5f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            // 段序号
+                            Text(
+                                text = "第 $segmentIndex 段",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "·",
+                                color = Color.White.copy(alpha = 0.5f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            // 剩余倒计时，临近结束时变红提醒
+                            Text(
+                                text = "剩 ${remainingSeconds}s",
+                                color = if (remainingSeconds <= 10) Color.Red else Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = if (remainingSeconds <= 10) 14.sp else 12.sp
+                            )
+                        }
+                    }
+
+                    // 有自动保存记录时在底部显示提示
+                    if (savedSegmentCount > 0) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 120.dp),
+                            color = Color.Black.copy(alpha = 0.45f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                text = "已自动保存 $savedSegmentCount 段",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
                         }
                     }
@@ -233,6 +343,7 @@ fun RecordVideoScreen(
                                     onClick = {
                                         val evidenceId = EvidenceIdGenerator.generate()
                                         currentEvidenceId = evidenceId
+                                        isAutoSegment = false
                                         startVideoRecording(
                                             context = context,
                                             videoCapture = videoCapture,
@@ -244,9 +355,12 @@ fun RecordVideoScreen(
                                                 activeRecording = recording
                                             },
                                             onFinalized = { videoPath ->
+                                                val autoSeg = isAutoSegment
+                                                isAutoSegment = false
                                                 viewModel.onRecordingStopped(
                                                     evidenceId = currentEvidenceId,
-                                                    videoPath = videoPath
+                                                    videoPath = videoPath,
+                                                    isAutoSegment = autoSeg
                                                 )
                                             },
                                             onError = { error ->
@@ -268,6 +382,8 @@ fun RecordVideoScreen(
                             is VideoUiState.Recording -> {
                                 FloatingActionButton(
                                     onClick = {
+                                        // 用户手动停止：标记非自动分段
+                                        isAutoSegment = false
                                         activeRecording?.stop()
                                         activeRecording = null
                                     },
@@ -369,16 +485,16 @@ private fun startVideoRecording(
         .start(executor) { event ->
             when (event) {
                 is VideoRecordEvent.Start -> {
-                    Log.i("RecordVideoScreen", "Recording started")
+                    Log.i("RecordVideoScreen", "Recording started: $evidenceId")
                     onStarted()
                 }
                 is VideoRecordEvent.Finalize -> {
                     if (event.hasError()) {
-                        Log.e("RecordVideoScreen", "Recording finalize error: ${event.error}")
+                        Log.e("RecordVideoScreen", "Finalize error: ${event.error}")
                         onError("录制错误: ${event.error}")
                     } else {
                         val savedPath = outputFile.absolutePath
-                        Log.i("RecordVideoScreen", "Recording finalized: $savedPath")
+                        Log.i("RecordVideoScreen", "Finalized: $savedPath")
                         onFinalized(savedPath)
                     }
                 }
