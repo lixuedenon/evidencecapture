@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- app/src/main/res/xml/shortcuts.xml -->
+<!-- 新建文件 - XML，App 桌面快捷方式定义 -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 快捷方式1：拍照取证 -->
+    <shortcut
+        android:shortcutId="shortcut_photo"
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_foreground"
+        android:shortcutShortLabel="@string/main_action_photo"
+        android:shortcutLongLabel="@string/capture_title">
+        <intent
+            android:action="com.mathsnew.evidencecapture.QUICK_PHOTO"
+            android:targetPackage="com.mathsnew.evidencecapture"
+            android:targetClass="com.mathsnew.evidencecapture.presentation.main.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+    <!-- 快捷方式2：录像取证 -->
+    <shortcut
+        android:shortcutId="shortcut_video"
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_foreground"
+        android:shortcutShortLabel="@string/main_action_video"
+        android:shortcutLongLabel="@string/video_title">
+        <intent
+            android:action="com.mathsnew.evidencecapture.QUICK_VIDEO"
+            android:targetPackage="com.mathsnew.evidencecapture"
+            android:targetClass="com.mathsnew.evidencecapture.presentation.main.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+    <!-- 快捷方式3：录音取证 -->
+    <shortcut
+        android:shortcutId="shortcut_audio"
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_foreground"
+        android:shortcutShortLabel="@string/main_action_audio"
+        android:shortcutLongLabel="@string/audio_title">
+        <intent
+            android:action="com.mathsnew.evidencecapture.QUICK_AUDIO"
+            android:targetPackage="com.mathsnew.evidencecapture"
+            android:targetClass="com.mathsnew.evidencecapture.presentation.main.MainActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+</shortcuts>

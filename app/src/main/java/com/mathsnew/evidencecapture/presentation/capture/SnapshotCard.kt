@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/capture/SnapshotCard.kt
-// Kotlin - 表现层，环境数据展示卡片，0值也显示，仅空字符串和null不显示
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.presentation.capture
 
@@ -11,7 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.mathsnew.evidencecapture.R
 import com.mathsnew.evidencecapture.domain.model.SensorSnapshot
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,13 +28,13 @@ fun SnapshotCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+        colors   = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "环境数据",
+                text  = stringResource(R.string.pdf_section_env),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -40,32 +42,37 @@ fun SnapshotCard(
 
             // 设备时间（始终显示）
             SnapshotRow(
-                icon = Icons.Default.AccessTime,
-                label = "时间",
+                icon  = Icons.Default.AccessTime,
+                label = stringResource(R.string.pdf_label_capture_time),
                 value = fullFormatter.format(Date(snapshot.capturedAt))
             )
 
             // 网络校准时间
             if (snapshot.networkTime > 0) {
                 val netTimeStr = fullFormatter.format(Date(snapshot.networkTime))
-                val diffMs = snapshot.networkTime - snapshot.capturedAt
-                val diffStr = when {
-                    Math.abs(diffMs) < 1000 -> "误差<1秒"
-                    diffMs > 0 -> "设备慢${Math.abs(diffMs) / 1000}秒"
-                    else -> "设备快${Math.abs(diffMs) / 1000}秒"
+                val diffMs     = snapshot.networkTime - snapshot.capturedAt
+                val diffStr    = when {
+                    Math.abs(diffMs) < 1000 ->
+                        stringResource(R.string.pdf_ntp_diff_less1s)
+                    diffMs > 0 ->
+                        stringResource(R.string.pdf_ntp_diff_slow,
+                            (Math.abs(diffMs) / 1000).toInt())
+                    else ->
+                        stringResource(R.string.pdf_ntp_diff_fast,
+                            (Math.abs(diffMs) / 1000).toInt())
                 }
                 SnapshotRow(
-                    icon = Icons.Default.CloudDone,
-                    label = "网络校时",
+                    icon  = Icons.Default.CloudDone,
+                    label = stringResource(R.string.pdf_label_ntp_time),
                     value = "$netTimeStr（$diffStr）"
                 )
             }
 
-            // GPS 坐标（有坐标才显示）
+            // GPS 坐标
             if (snapshot.latitude != 0.0 || snapshot.longitude != 0.0) {
                 SnapshotRow(
-                    icon = Icons.Default.LocationOn,
-                    label = "坐标",
+                    icon  = Icons.Default.LocationOn,
+                    label = stringResource(R.string.pdf_label_gps),
                     value = "%.6f, %.6f".format(snapshot.latitude, snapshot.longitude)
                 )
             }
@@ -73,8 +80,8 @@ fun SnapshotCard(
             // 地址
             if (snapshot.address.isNotEmpty()) {
                 SnapshotRow(
-                    icon = Icons.Default.Place,
-                    label = "地址",
+                    icon  = Icons.Default.Place,
+                    label = stringResource(R.string.pdf_label_address),
                     value = snapshot.address
                 )
             }
@@ -82,38 +89,38 @@ fun SnapshotCard(
             // 海拔
             if (snapshot.altitude != 0.0) {
                 SnapshotRow(
-                    icon = Icons.Default.Terrain,
-                    label = "海拔",
+                    icon  = Icons.Default.Terrain,
+                    label = stringResource(R.string.pdf_label_altitude),
                     value = "%.1f m".format(snapshot.altitude)
                 )
             }
 
-            // 方位角（始终显示，0度也有意义）
+            // 方位角
             SnapshotRow(
-                icon = Icons.Default.Explore,
-                label = "方位角",
+                icon  = Icons.Default.Explore,
+                label = stringResource(R.string.pdf_label_azimuth),
                 value = "%.1f°".format(snapshot.azimuth)
             )
 
-            // 光照（始终显示，0也显示）
+            // 光照
             SnapshotRow(
-                icon = Icons.Default.LightMode,
-                label = "光照",
+                icon  = Icons.Default.LightMode,
+                label = stringResource(R.string.pdf_label_light),
                 value = "%.0f lux".format(snapshot.lightLux)
             )
 
-            // 分贝（始终显示，0也显示）
+            // 分贝
             SnapshotRow(
-                icon = Icons.Default.VolumeUp,
-                label = "分贝",
+                icon  = Icons.Default.VolumeUp,
+                label = stringResource(R.string.pdf_label_decibel),
                 value = "%.1f dB".format(snapshot.decibel)
             )
 
-            // 气压（始终显示）
+            // 气压
             if (snapshot.pressureHpa != 0f) {
                 SnapshotRow(
-                    icon = Icons.Default.Speed,
-                    label = "气压",
+                    icon  = Icons.Default.Speed,
+                    label = stringResource(R.string.pdf_label_pressure),
                     value = "%.1f hPa".format(snapshot.pressureHpa)
                 )
             }
@@ -121,8 +128,8 @@ fun SnapshotCard(
             // Wi-Fi
             if (snapshot.wifiSsid.isNotEmpty()) {
                 SnapshotRow(
-                    icon = Icons.Default.Wifi,
-                    label = "Wi-Fi",
+                    icon  = Icons.Default.Wifi,
+                    label = stringResource(R.string.pdf_label_wifi),
                     value = snapshot.wifiSsid
                 )
             }
@@ -130,21 +137,21 @@ fun SnapshotCard(
             // 运营商
             if (snapshot.operator.isNotEmpty()) {
                 SnapshotRow(
-                    icon = Icons.Default.SignalCellularAlt,
-                    label = "运营商",
+                    icon  = Icons.Default.SignalCellularAlt,
+                    label = stringResource(R.string.pdf_label_operator),
                     value = snapshot.operator
                 )
             }
 
-            // 天气（有数据才显示）
+            // 天气
             if (snapshot.weatherDesc.isNotEmpty()) {
                 SnapshotRow(
-                    icon = Icons.Default.WbCloudy,
-                    label = "天气",
+                    icon  = Icons.Default.WbCloudy,
+                    label = stringResource(R.string.pdf_label_weather),
                     value = "${snapshot.weatherDesc}  " +
                             "${snapshot.temperature}℃  " +
-                            "湿度${snapshot.humidity}%  " +
-                            "风速${snapshot.windSpeed}m/s"
+                            "${snapshot.humidity}%  " +
+                            "${snapshot.windSpeed}m/s"
                 )
             }
         }
@@ -153,32 +160,32 @@ fun SnapshotCard(
 
 @Composable
 private fun SnapshotRow(
-    icon: ImageVector,
+    icon:  ImageVector,
     label: String,
     value: String
 ) {
     Row(
-        modifier = Modifier
+        modifier          = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp),
         verticalAlignment = Alignment.Top
     ) {
         Icon(
-            imageVector = icon,
+            imageVector        = icon,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            modifier           = Modifier.size(16.dp),
+            tint               = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = "$label：",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text     = "$label：",
+            style    = MaterialTheme.typography.bodySmall,
+            color    = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(56.dp)
         )
         Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
+            text     = value,
+            style    = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f)
         )
     }

@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/detail/EvidenceDetailViewModel.kt
-// Kotlin - 表现层，证据详情 ViewModel，含音频播放状态管理和元数据编辑
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.presentation.detail
 
@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 sealed class DetailUiState {
@@ -32,7 +33,6 @@ sealed class DetailUiState {
     data class Error(val message: String) : DetailUiState()
 }
 
-/** 音频播放状态 */
 sealed class AudioPlayState {
     object Idle : AudioPlayState()
     data class Playing(
@@ -65,10 +65,6 @@ class EvidenceDetailViewModel @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
 
-    /**
-     * 加载证据及快照。
-     * 快照通过 Flow 持续观察，天气/地址异步回填数据库后 UI 自动刷新。
-     */
     fun loadEvidence(evidenceId: String) {
         Log.i(TAG, "loadEvidence called: $evidenceId")
         viewModelScope.launch {
@@ -87,7 +83,6 @@ class EvidenceDetailViewModel @Inject constructor(
                 val initialSnapshot = snapshotRepository.getByEvidenceId(evidenceId)
                 _uiState.value = DetailUiState.Success(evidence, initialSnapshot, hashVerified)
 
-                // 持续观察快照 Flow，天气/地址回填后自动更新 UI
                 snapshotRepository.observeByEvidenceId(evidenceId).collect { snapshot ->
                     val current = _uiState.value
                     if (current is DetailUiState.Success) {
@@ -101,22 +96,15 @@ class EvidenceDetailViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 更新证据的可编辑元数据：标题、标签、备注
-     * 更新后同步刷新 UI 状态，用户立即看到新值
-     */
     fun updateMeta(id: String, title: String, tag: String, notes: String) {
         viewModelScope.launch {
             try {
                 evidenceRepository.updateMeta(id, title, tag, notes)
-                // 同步更新内存中的 UI 状态，无需重新查询数据库
                 val current = _uiState.value
                 if (current is DetailUiState.Success) {
                     _uiState.value = current.copy(
                         evidence = current.evidence.copy(
-                            title = title,
-                            tag = tag,
-                            notes = notes
+                            title = title, tag = tag, notes = notes
                         )
                     )
                 }
@@ -127,7 +115,33 @@ class EvidenceDetailViewModel @Inject constructor(
         }
     }
 
-    /** 播放或暂停指定音频文件 */
+    /**
+     * 从详情页直接删除当前证据及其关联文件
+     * 删除完成后调用方负责导航返回
+     */
+    fun deleteEvidence(evidenceId: String) {
+        viewModelScope.launch {
+            try {
+                val current = _uiState.value
+                if (current is DetailUiState.Success) {
+                    val evidence = current.evidence
+                    // 停止正在播放的音频，避免删除文件时资源占用
+                    stopAudio()
+                    // 删除媒体文件
+                    if (evidence.mediaPath.isNotEmpty())
+                        File(evidence.mediaPath).takeIf { it.exists() }?.delete()
+                    if (evidence.voiceNotePath.isNotEmpty())
+                        File(evidence.voiceNotePath).takeIf { it.exists() }?.delete()
+                    // 删除数据库记录
+                    evidenceRepository.delete(evidenceId)
+                    Log.i(TAG, "Evidence deleted: $evidenceId")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Delete evidence failed: ${e.message}")
+            }
+        }
+    }
+
     fun togglePlay(path: String, label: String) {
         val current = _audioPlayState.value
         when {
@@ -158,7 +172,6 @@ class EvidenceDetailViewModel @Inject constructor(
         }
     }
 
-    /** 停止播放，释放资源 */
     fun stopAudio() {
         progressJob?.cancel()
         progressJob = null
@@ -168,15 +181,13 @@ class EvidenceDetailViewModel @Inject constructor(
         _audioPlayState.value = AudioPlayState.Idle
     }
 
-    /** 跳转到指定进度 */
     fun seekTo(ms: Int) {
         mediaPlayer?.seekTo(ms)
         val current = _audioPlayState.value
-        if (current is AudioPlayState.Playing) {
+        if (current is AudioPlayState.Playing)
             _audioPlayState.value = current.copy(currentMs = ms)
-        } else if (current is AudioPlayState.Paused) {
+        else if (current is AudioPlayState.Paused)
             _audioPlayState.value = current.copy(currentMs = ms)
-        }
     }
 
     private fun startPlay(path: String, label: String) {
@@ -185,17 +196,11 @@ class EvidenceDetailViewModel @Inject constructor(
                 setDataSource(path)
                 prepare()
                 start()
-                setOnCompletionListener {
-                    progressJob?.cancel()
-                    stopAudio()
-                }
+                setOnCompletionListener { progressJob?.cancel(); stopAudio() }
             }
             mediaPlayer = player
             _audioPlayState.value = AudioPlayState.Playing(
-                path = path,
-                currentMs = 0,
-                totalMs = player.duration,
-                label = label
+                path = path, currentMs = 0, totalMs = player.duration, label = label
             )
             startProgressTracking(path, label)
         } catch (e: Exception) {
@@ -211,10 +216,8 @@ class EvidenceDetailViewModel @Inject constructor(
                 val player = mediaPlayer ?: break
                 if (!player.isPlaying) break
                 _audioPlayState.value = AudioPlayState.Playing(
-                    path = path,
-                    currentMs = player.currentPosition,
-                    totalMs = player.duration,
-                    label = label
+                    path = path, currentMs = player.currentPosition,
+                    totalMs = player.duration, label = label
                 )
                 delay(200)
             }

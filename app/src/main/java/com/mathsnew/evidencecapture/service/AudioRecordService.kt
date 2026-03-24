@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.mathsnew.evidencecapture.EvidenceCapturerApp
+import com.mathsnew.evidencecapture.R
 import com.mathsnew.evidencecapture.presentation.main.MainActivity
 import java.io.File
 
@@ -94,8 +95,8 @@ class AudioRecordService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, EvidenceCapturerApp.CHANNEL_ID_RECORD)
-            .setContentTitle("取证录音中")
-            .setContentText("正在录音，点击返回应用")
+            .setContentTitle(getString(R.string.notif_record_title))
+            .setContentText(getString(R.string.notif_record_text))
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

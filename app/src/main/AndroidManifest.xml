@@ -31,13 +31,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.EvidenceCapture">
 
-        <!--
-            launchMode="singleTop"：通知栏/音量键触发时不重复创建 Activity
-            screenOrientation 不在此处锁定，由各页面代码动态控制：
-              - 录音/录像/拍照页：竖屏
-              - 视频全屏播放：横屏（VideoPlayerCard 里 requestedOrientation 动态切换）
-            configChanges 声明后方向切换不触发 Activity 重建，由 Compose 自行处理布局
-        -->
         <activity
             android:name=".presentation.main.MainActivity"
             android:exported="true"
@@ -47,6 +40,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- 桌面快捷方式：长按 App 图标显示拍照/录像/录音三个入口 -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <service
@@ -54,14 +52,12 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
-        <!-- 通知栏快捷取证按钮 + 音量下键连按3次触发录音 -->
         <service
             android:name=".service.QuickCaptureService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
-        <!-- FileProvider 用于分享和导出文件 -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

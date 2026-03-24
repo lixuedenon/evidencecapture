@@ -3,6 +3,7 @@
 
 package com.mathsnew.evidencecapture.presentation.main
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,6 +14,7 @@ import com.mathsnew.evidencecapture.navigation.AppNavGraph
 import com.mathsnew.evidencecapture.navigation.Routes
 import com.mathsnew.evidencecapture.service.QuickCaptureService
 import com.mathsnew.evidencecapture.ui.theme.EvidenceCaptureTheme
+import com.mathsnew.evidencecapture.util.LocaleHelper
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -20,6 +22,12 @@ class MainActivity : ComponentActivity() {
 
     // navController 提升到 Activity 层，供 onNewIntent 导航使用
     private var navController: NavController? = null
+
+    // 在 Activity 级别应用保存的语言设置
+    // 与 Application 的 attachBaseContext 共同确保语言一致
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

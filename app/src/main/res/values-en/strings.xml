@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- app/src/main/res/values-en/strings.xml -->
+<!-- 新建文件 - XML，English -->
+<resources>
+    <string name="app_name">Evidence Capturer</string>
+
+    <string name="main_title">Evidence Records</string>
+    <string name="main_search_hint">Search title or tag</string>
+    <string name="main_search_clear">Clear</string>
+    <string name="main_sort">Sort</string>
+    <string name="main_select_exit">Exit Selection</string>
+    <string name="main_selected_count">%d selected</string>
+    <string name="main_select_all">Select All</string>
+    <string name="main_batch_delete">Delete Selected</string>
+    <string name="main_empty">No records yet</string>
+    <string name="main_empty_filtered">No matching evidence</string>
+    <string name="main_action_photo">Photo</string>
+    <string name="main_action_video">Video</string>
+    <string name="main_action_audio">Audio</string>
+    <string name="main_action_text">Text</string>
+
+    <string name="filter_all">All</string>
+    <string name="filter_photo">Photo</string>
+    <string name="filter_video">Video</string>
+    <string name="filter_audio">Audio</string>
+    <string name="filter_text">Text</string>
+
+    <string name="delete_title">Delete Evidence</string>
+    <string name="delete_message">Delete this evidence? All related files will be removed. This cannot be undone.</string>
+    <string name="delete_confirm">Delete</string>
+    <string name="delete_cancel">Cancel</string>
+    <string name="batch_delete_title">Batch Delete</string>
+    <string name="batch_delete_message">Delete %d selected items? This cannot be undone.</string>
+
+    <string name="edit_title">Edit Evidence</string>
+    <string name="edit_label_id">ID: %s</string>
+    <string name="edit_label_type">Type: %s</string>
+    <string name="edit_label_time">Time: %s</string>
+    <string name="edit_field_title">Title</string>
+    <string name="edit_field_title_hint">Give this evidence a name</string>
+    <string name="edit_field_tag_label">Scene Tag</string>
+    <string name="edit_field_tag">Custom Tag</string>
+    <string name="edit_field_tag_hint">Or enter a custom tag</string>
+    <string name="edit_field_notes">Notes</string>
+    <string name="edit_field_notes_hint">Add details about the incident</string>
+    <string name="edit_save">Save</string>
+    <string name="edit_cancel">Cancel</string>
+
+    <string name="tag_rent">Rental Dispute</string>
+    <string name="tag_traffic">Traffic Accident</string>
+    <string name="tag_workplace">Workplace Dispute</string>
+    <string name="tag_family">Family Dispute</string>
+    <string name="tag_fraud">Consumer Fraud</string>
+    <string name="tag_safety">Personal Safety</string>
+    <string name="tag_property">Property Dispute</string>
+    <string name="tag_other">Other</string>
+
+    <string name="capture_title">Photo Evidence</string>
+    <string name="capture_need_permission">Camera permission is required</string>
+    <string name="capture_grant_permission">Grant Permission</string>
+    <string name="capture_capturing">Capturing...</string>
+    <string name="capture_back">Back</string>
+
+    <string name="confirm_title">Confirm Evidence</string>
+    <string name="confirm_field_title">Title (optional)</string>
+    <string name="confirm_tag_label">Scene Tag</string>
+    <string name="confirm_voice_add">Add voice note (optional)</string>
+    <string name="confirm_voice_done">Voice note recorded</string>
+    <string name="confirm_voice_stop">Stop Recording</string>
+    <string name="confirm_voice_start">Start Recording</string>
+    <string name="confirm_cancel">Cancel</string>
+    <string name="confirm_save">Save Evidence</string>
+    <string name="confirm_back">Back</string>
+
+    <string name="audio_title">Audio Evidence</string>
+    <string name="audio_back">Back</string>
+    <string name="audio_disguise">Disguise</string>
+    <string name="audio_field_title">Title (optional)</string>
+    <string name="audio_start">Start Recording</string>
+    <string name="audio_stop">Stop Recording</string>
+    <string name="audio_processing">Processing...</string>
+    <string name="audio_saving">Saving...</string>
+    <string name="audio_ready_hint">Recording complete. Save or cancel.</string>
+    <string name="audio_cancel">Cancel</string>
+    <string name="audio_save">Save Recording</string>
+    <string name="audio_status_idle">Tap to start recording</string>
+    <string name="audio_status_recording">Recording</string>
+    <string name="audio_status_done">Recording complete</string>
+
+    <string name="disguise_picker_title">Choose Disguise</string>
+    <string name="disguise_cancel">Cancel</string>
+    <string name="disguise_music">Music Player</string>
+    <string name="disguise_calculator">Calculator</string>
+    <string name="disguise_call">Phone Call</string>
+    <string name="disguise_news">News Reader</string>
+
+    <string name="disguise_music_unknown_song">Unknown Song</string>
+    <string name="disguise_music_unknown_artist">Unknown Artist</string>
+    <string name="disguise_call_unknown">Unknown Number</string>
+    <string name="disguise_call_in_call">In call 00:00</string>
+    <string name="disguise_call_mute">Mute</string>
+    <string name="disguise_call_hangup">End</string>
+    <string name="disguise_call_speaker">Speaker</string>
+    <string name="disguise_news_title">Today\'s News</string>
+    <string name="disguise_news_1_headline">Economy shows steady growth with record indicators</string>
+    <string name="disguise_news_1_content">GDP has maintained stable growth this year, with multiple economic indicators showing improvement...</string>
+    <string name="disguise_news_2_headline">Tech innovation drives new energy industry boom</string>
+    <string name="disguise_news_2_content">New energy vehicle sales hit record highs as supply chains mature and cities expand charging infrastructure...</string>
+    <string name="disguise_news_3_headline">Urban development accelerates, quality of life improves</string>
+    <string name="disguise_news_3_content">Multiple cities announced new urban renewal plans focusing on older residential areas and public space upgrades...</string>
+
+    <string name="video_title">Video Evidence</string>
+    <string name="video_back">Back</string>
+    <string name="video_need_permission">Camera and microphone permissions are required</string>
+    <string name="video_grant_permission">Grant Permission</string>
+    <string name="video_done_title">Recording Complete</string>
+    <string name="video_done_hint">Save or cancel</string>
+    <string name="video_field_title">Title (optional)</string>
+    <string name="video_cancel">Cancel</string>
+    <string name="video_save">Save Video</string>
+    <string name="video_start">Start Recording</string>
+    <string name="video_stop">Stop Recording</string>
+
+    <string name="textnote_title">Text Record</string>
+    <string name="textnote_back">Back</string>
+    <string name="textnote_field_title">Title (optional)</string>
+    <string name="textnote_field_content">Record content</string>
+    <string name="textnote_tag_label">Scene Tag</string>
+    <string name="textnote_voice_stop">Stop Voice</string>
+    <string name="textnote_voice_start">Voice Input</string>
+    <string name="textnote_listening">Listening...</string>
+    <string name="textnote_cancel">Cancel</string>
+    <string name="textnote_save">Save Record</string>
+
+    <string name="detail_title">Evidence Detail</string>
+    <string name="detail_back">Back</string>
+    <string name="detail_edit_notes">Edit Notes</string>
+    <string name="detail_share">Share</string>
+    <string name="detail_export">Export</string>
+    <string name="detail_export_zip">Export as ZIP</string>
+    <string name="detail_export_pdf">View PDF Report</string>
+    <string name="detail_share_chooser">Share Evidence Report</string>
+    <string name="detail_export_chooser">Export Evidence Package</string>
+    <string name="detail_share_pdf_chooser">Share PDF Report</string>
+    <string name="detail_hash_verified">File integrity verified</string>
+    <string name="detail_hash_tampered">Warning: File may have been tampered</string>
+    <string name="detail_hash_prefix">SHA-256: </string>
+    <string name="detail_notes_label">Notes</string>
+    <string name="detail_notes_empty">Tap the button to add notes</string>
+    <string name="detail_notes_add">Add Notes</string>
+    <string name="detail_notes_edit">Edit Notes</string>
+    <string name="detail_video_label">Video Evidence</string>
+    <string name="detail_voice_note_label">Voice Note</string>
+    <string name="detail_audio_label">Recording</string>
+
+    <string name="notes_dialog_title">Edit Notes</string>
+    <string name="notes_dialog_label">Note content</string>
+    <string name="notes_dialog_hint">Describe the incident or add additional details</string>
+    <string name="notes_dialog_save">Save</string>
+    <string name="notes_dialog_cancel">Cancel</string>
+
+    <string name="notif_channel_record_name">Recording Service</string>
+    <string name="notif_channel_record_desc">Persistent notification while recording evidence</string>
+    <string name="notif_channel_quick_name">Quick Capture</string>
+    <string name="notif_channel_quick_desc">Persistent quick capture buttons</string>
+    <string name="notif_quick_title">Evidence Capturer</string>
+    <string name="notif_quick_text">Quick capture · Always ready</string>
+    <string name="notif_quick_audio">● Record</string>
+    <string name="notif_quick_video">▶ Video</string>
+    <string name="notif_quick_photo">◉ Photo</string>
+    <string name="notif_record_title">Recording Evidence</string>
+    <string name="notif_record_text">Recording in progress, tap to return</string>
+
+    <string name="pdf_type_photo">📷 Photo Evidence</string>
+    <string name="pdf_type_video">🎬 Video Evidence</string>
+    <string name="pdf_type_audio">🎙 Audio Evidence</string>
+    <string name="pdf_type_text">📝 Text Record</string>
+    <string name="pdf_no_title">Untitled Record</string>
+    <string name="pdf_section_photo">Evidence Photo</string>
+    <string name="pdf_section_video">Evidence Video</string>
+    <string name="pdf_section_audio">Evidence Recording</string>
+    <string name="pdf_section_text">Text Record</string>
+    <string name="pdf_section_basic">Basic Information</string>
+    <string name="pdf_section_location">Location &amp; Time</string>
+    <string name="pdf_section_env">Environmental Data</string>
+    <string name="pdf_section_integrity">File Integrity</string>
+    <string name="pdf_label_tag">Scene Tag</string>
+    <string name="pdf_label_notes">Notes</string>
+    <string name="pdf_label_capture_time">Capture Time</string>
+    <string name="pdf_label_ntp_time">NTP Time</string>
+    <string name="pdf_label_gps">GPS Coordinates</string>
+    <string name="pdf_label_address">Address</string>
+    <string name="pdf_label_weather">🌤 Weather</string>
+    <string name="pdf_label_light">💡 Light</string>
+    <string name="pdf_label_decibel">🔊 Decibel</string>
+    <string name="pdf_label_azimuth">🧭 Azimuth</string>
+    <string name="pdf_label_pressure">🌡 Pressure</string>
+    <string name="pdf_label_altitude">Altitude</string>
+    <string name="pdf_label_wifi">📶 WiFi</string>
+    <string name="pdf_label_operator">📡 Carrier</string>
+    <string name="pdf_ntp_fail">%s  ⚠ NTP failed, showing device time</string>
+    <string name="pdf_ntp_diff_less1s">diff &lt;1s</string>
+    <string name="pdf_ntp_diff_slow">device slow %ds</string>
+    <string name="pdf_ntp_diff_fast">device fast %ds</string>
+    <string name="pdf_gps_none">Location unavailable</string>
+    <string name="pdf_video_duration">Duration: %s</string>
+    <string name="pdf_integrity_ok">File integrity recorded</string>
+    <string name="pdf_integrity_none">Hash not calculated</string>
+    <string name="pdf_integrity_desc">This hash was computed when the file was saved and can be used to verify the file has not been modified</string>
+    <string name="pdf_footer">Recorded by EvidenceCapturer on %s  ·  Generated %s</string>
+    <string name="pdf_share_text">Please open with a PDF reader to view the evidence record</string>
+    <string name="pdf_video_placeholder">Video File</string>
+    <string name="pdf_audio_placeholder">Audio File</string>
+
+    <string name="language_select">Select Language</string>
+    <string name="lang_zh_cn">中文（简体）</string>
+    <string name="lang_zh_tw">中文（繁體）</string>
+    <string name="lang_en">English</string>
+    <string name="lang_fr">Français</string>
+    <string name="lang_de">Deutsch</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_ko">한국어</string>
+    <string name="lang_es">Español</string>
+    <string name="lang_pt">Português</string>
+    <string name="lang_ru">Русский</string>
+    <string name="lang_hi">हिन्दी</string>
+    <string name="lang_in">Bahasa Indonesia</string>
+</resources>

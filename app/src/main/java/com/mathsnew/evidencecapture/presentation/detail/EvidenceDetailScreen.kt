@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/detail/EvidenceDetailScreen.kt
-// Kotlin - 表现层，证据详情页，含内置视频播放器、音频播放、备注编辑、导出、分享功能
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.presentation.detail
 
@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -31,6 +32,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import com.mathsnew.evidencecapture.R
 import com.mathsnew.evidencecapture.domain.model.MediaType
 import com.mathsnew.evidencecapture.presentation.capture.SnapshotCard
 import com.mathsnew.evidencecapture.util.ExportHelper
@@ -50,53 +52,106 @@ import java.util.Locale
 fun EvidenceDetailScreen(
     evidenceId: String,
     onBack: () -> Unit,
-    // 新增：导出 PDF 后跳转到 PDF 查看页
     onNavigatePdfViewer: (pdfPath: String, title: String) -> Unit = { _, _ -> },
     viewModel: EvidenceDetailViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
 
-    LaunchedEffect(evidenceId) {
-        viewModel.loadEvidence(evidenceId)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { viewModel.stopAudio() }
-    }
+    LaunchedEffect(evidenceId) { viewModel.loadEvidence(evidenceId) }
+    DisposableEffect(Unit) { onDispose { viewModel.stopAudio() } }
 
     val uiState        by viewModel.uiState.collectAsState()
     val audioPlayState by viewModel.audioPlayState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
-    var showExportMenu  by remember { mutableStateOf(false) }
-    var isExporting     by remember { mutableStateOf(false) }
-    var isSharing       by remember { mutableStateOf(false) }
-    var isExportingPdf  by remember { mutableStateOf(false) }
-    var showNotesDialog by remember { mutableStateOf(false) }
+    var showExportMenu    by remember { mutableStateOf(false) }
+    var isExporting       by remember { mutableStateOf(false) }
+    var isSharing         by remember { mutableStateOf(false) }
+    var isExportingPdf    by remember { mutableStateOf(false) }
+    var showNotesDialog   by remember { mutableStateOf(false) }
+    var showEditDialog    by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // ── 编辑证据信息弹窗 ──────────────────────────────────────
+    if (showEditDialog && uiState is DetailUiState.Success) {
+        val state = uiState as DetailUiState.Success
+        EditMetaDialog(
+            title     = state.evidence.title,
+            tag       = state.evidence.tag,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { newTitle, newTag ->
+                viewModel.updateMeta(
+                    id    = state.evidence.id,
+                    title = newTitle,
+                    tag   = newTag,
+                    notes = state.evidence.notes
+                )
+                showEditDialog = false
+            }
+        )
+    }
+
+    // ── 删除确认弹窗 ──────────────────────────────────────────
+    if (showDeleteConfirm && uiState is DetailUiState.Success) {
+        val state = uiState as DetailUiState.Success
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.delete_title)) },
+            text  = { Text(stringResource(R.string.delete_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteEvidence(state.evidence.id)
+                    showDeleteConfirm = false
+                    onBack()
+                }) {
+                    Text(stringResource(R.string.delete_confirm),
+                        color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.delete_cancel))
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("证据详情") },
+                title = { Text(stringResource(R.string.detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack,
+                            contentDescription = stringResource(R.string.detail_back))
                     }
                 },
                 actions = {
                     if (uiState is DetailUiState.Success) {
                         val state = uiState as DetailUiState.Success
 
-                        // 备注编辑按钮
-                        IconButton(onClick = { showNotesDialog = true }) {
-                            Icon(
-                                Icons.Default.EditNote,
-                                contentDescription = "编辑备注",
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
+                        // 编辑标题/标签
+                        IconButton(onClick = { showEditDialog = true }) {
+                            Icon(Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.edit_title),
+                                tint = MaterialTheme.colorScheme.onPrimary)
                         }
 
-                        // 分享按钮 → 生成 HTML 后调用系统分享
+                        // 编辑备注
+                        IconButton(onClick = { showNotesDialog = true }) {
+                            Icon(Icons.Default.EditNote,
+                                contentDescription = stringResource(R.string.detail_edit_notes),
+                                tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+
+                        // 删除证据
+                        IconButton(onClick = { showDeleteConfirm = true }) {
+                            Icon(Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.delete_title),
+                                tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+
+                        // 分享
                         IconButton(
                             onClick = {
                                 if (!isSharing) {
@@ -104,17 +159,14 @@ fun EvidenceDetailScreen(
                                         isSharing = true
                                         val htmlFile = withContext(Dispatchers.IO) {
                                             ExportHelper.exportToHtml(
-                                                context, state.evidence, state.snapshot
-                                            )
+                                                context, state.evidence, state.snapshot)
                                         }
                                         isSharing = false
                                         if (htmlFile != null) {
-                                            val intent = ExportHelper.getHtmlShareIntent(
-                                                context, htmlFile
-                                            )
                                             context.startActivity(
                                                 android.content.Intent.createChooser(
-                                                    intent, "分享证据报告"
+                                                    ExportHelper.getHtmlShareIntent(context, htmlFile),
+                                                    context.getString(R.string.detail_share_chooser)
                                                 )
                                             )
                                         }
@@ -123,92 +175,65 @@ fun EvidenceDetailScreen(
                             }
                         ) {
                             if (isSharing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
+                                    color = MaterialTheme.colorScheme.onPrimary)
                             } else {
-                                Icon(
-                                    Icons.Default.Share,
-                                    contentDescription = "分享",
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
+                                Icon(Icons.Default.Share,
+                                    contentDescription = stringResource(R.string.detail_share),
+                                    tint = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
 
-                        // 导出按钮（ZIP + PDF）
+                        // 导出（ZIP / PDF）
                         Box {
                             IconButton(onClick = { showExportMenu = true }) {
                                 if (isExporting || isExportingPdf) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp),
                                         strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                        color = MaterialTheme.colorScheme.onPrimary)
                                 } else {
-                                    Icon(
-                                        Icons.Default.FileDownload,
-                                        contentDescription = "导出",
-                                        tint = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    Icon(Icons.Default.FileDownload,
+                                        contentDescription = stringResource(R.string.detail_export),
+                                        tint = MaterialTheme.colorScheme.onPrimary)
                                 }
                             }
-                            DropdownMenu(
-                                expanded = showExportMenu,
-                                onDismissRequest = { showExportMenu = false }
-                            ) {
-                                // ZIP 导出
+                            DropdownMenu(expanded = showExportMenu,
+                                onDismissRequest = { showExportMenu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("导出为 ZIP 压缩包") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.FolderZip, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showExportMenu = false
-                                        isExporting = true
+                                    text        = { Text(stringResource(R.string.detail_export_zip)) },
+                                    leadingIcon = { Icon(Icons.Default.FolderZip, null) },
+                                    onClick     = {
+                                        showExportMenu = false; isExporting = true
                                         val zipFile = ExportHelper.exportToZip(
-                                            context, state.evidence, state.snapshot
-                                        )
+                                            context, state.evidence, state.snapshot)
                                         isExporting = false
                                         if (zipFile != null) {
-                                            val intent = ExportHelper.getZipShareIntent(
-                                                context, zipFile
-                                            )
                                             context.startActivity(
                                                 android.content.Intent.createChooser(
-                                                    intent, "导出证据包"
+                                                    ExportHelper.getZipShareIntent(context, zipFile),
+                                                    context.getString(R.string.detail_export_chooser)
                                                 )
                                             )
                                         }
                                     }
                                 )
-                                // PDF 查看（生成后在 App 内查看，查看页内可再分享）
                                 DropdownMenuItem(
-                                    text = { Text("查看 PDF 报告") },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.PictureAsPdf,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    onClick = {
+                                    text        = { Text(stringResource(R.string.detail_export_pdf)) },
+                                    leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) },
+                                    onClick     = {
                                         showExportMenu = false
                                         coroutineScope.launch {
                                             isExportingPdf = true
                                             val pdfFile = withContext(Dispatchers.IO) {
                                                 PdfReportBuilder.build(
-                                                    context, state.evidence, state.snapshot
-                                                )
+                                                    context, state.evidence, state.snapshot)
                                             }
                                             isExportingPdf = false
                                             if (pdfFile != null) {
-                                                // 导航到 App 内 PDF 查看页
-                                                val pdfTitle = state.evidence.title
-                                                    .ifEmpty { state.evidence.id }
                                                 onNavigatePdfViewer(
                                                     pdfFile.absolutePath,
-                                                    pdfTitle
+                                                    state.evidence.title.ifEmpty { state.evidence.id }
                                                 )
                                             }
                                         }
@@ -219,8 +244,8 @@ fun EvidenceDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    containerColor             = MaterialTheme.colorScheme.primary,
+                    titleContentColor          = MaterialTheme.colorScheme.onPrimary,
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
@@ -231,14 +256,10 @@ fun EvidenceDetailScreen(
             val state = uiState as DetailUiState.Success
             NotesEditDialog(
                 currentNotes = state.evidence.notes,
-                onDismiss = { showNotesDialog = false },
-                onConfirm = { newNotes ->
-                    viewModel.updateMeta(
-                        id    = state.evidence.id,
-                        title = state.evidence.title,
-                        tag   = state.evidence.tag,
-                        notes = newNotes
-                    )
+                onDismiss    = { showNotesDialog = false },
+                onConfirm    = { newNotes ->
+                    viewModel.updateMeta(state.evidence.id, state.evidence.title,
+                        state.evidence.tag, newNotes)
                     showNotesDialog = false
                 }
             )
@@ -246,16 +267,14 @@ fun EvidenceDetailScreen(
 
         when (val state = uiState) {
             is DetailUiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) { CircularProgressIndicator() }
+                Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
             is DetailUiState.Error -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) { Text(state.message, color = MaterialTheme.colorScheme.error) }
+                Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) {
+                    Text(state.message, color = MaterialTheme.colorScheme.error)
+                }
             }
             is DetailUiState.Success -> {
                 val evidence = state.evidence
@@ -267,95 +286,68 @@ fun EvidenceDetailScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = evidence.id,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            .format(Date(evidence.createdAt)),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    if (evidence.title.isNotEmpty()) {
-                        Text(
-                            text = evidence.title,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    if (evidence.tag.isNotEmpty()) {
+                    Text(evidence.id, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        .format(Date(evidence.createdAt)),
+                        style = MaterialTheme.typography.bodySmall)
+                    if (evidence.title.isNotEmpty())
+                        Text(evidence.title, style = MaterialTheme.typography.titleMedium)
+                    if (evidence.tag.isNotEmpty())
                         AssistChip(onClick = {}, label = { Text(evidence.tag) })
-                    }
 
                     when (evidence.mediaType) {
                         MediaType.PHOTO -> {
                             AsyncImage(
-                                model = evidence.mediaPath,
-                                contentDescription = "证据照片",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(280.dp)
+                                model              = evidence.mediaPath,
+                                contentDescription = stringResource(R.string.filter_photo),
+                                contentScale       = ContentScale.Fit,
+                                modifier           = Modifier.fillMaxWidth().height(280.dp)
                             )
                             if (evidence.voiceNotePath.isNotEmpty() &&
-                                File(evidence.voiceNotePath).exists()
-                            ) {
+                                File(evidence.voiceNotePath).exists()) {
                                 AudioPlayerCard(
-                                    label = "语音备注",
-                                    path = evidence.voiceNotePath,
-                                    playState = audioPlayState,
-                                    onTogglePlay = {
-                                        viewModel.togglePlay(evidence.voiceNotePath, "语音备注")
-                                    },
-                                    onStop  = { viewModel.stopAudio() },
-                                    onSeek  = { viewModel.seekTo(it) }
+                                    label        = stringResource(R.string.detail_voice_note_label),
+                                    path         = evidence.voiceNotePath,
+                                    playState    = audioPlayState,
+                                    onTogglePlay = { viewModel.togglePlay(evidence.voiceNotePath, "voice") },
+                                    onStop       = { viewModel.stopAudio() },
+                                    onSeek       = { viewModel.seekTo(it) }
                                 )
                             }
                         }
                         MediaType.AUDIO -> {
                             AudioPlayerCard(
-                                label = "录音",
-                                path = evidence.mediaPath,
-                                playState = audioPlayState,
-                                onTogglePlay = {
-                                    viewModel.togglePlay(evidence.mediaPath, "录音")
-                                },
-                                onStop  = { viewModel.stopAudio() },
-                                onSeek  = { viewModel.seekTo(it) }
+                                label        = stringResource(R.string.detail_audio_label),
+                                path         = evidence.mediaPath,
+                                playState    = audioPlayState,
+                                onTogglePlay = { viewModel.togglePlay(evidence.mediaPath, "audio") },
+                                onStop       = { viewModel.stopAudio() },
+                                onSeek       = { viewModel.seekTo(it) }
                             )
                         }
-                        MediaType.VIDEO -> {
-                            VideoPlayerCard(videoPath = evidence.mediaPath)
-                        }
-                        MediaType.TEXT -> {
+                        MediaType.VIDEO -> VideoPlayerCard(videoPath = evidence.mediaPath)
+                        MediaType.TEXT  -> {
                             Card(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = evidence.textContent,
+                                Text(evidence.textContent,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(16.dp)
-                                )
+                                    modifier = Modifier.padding(16.dp))
                             }
                         }
                     }
 
-                    NotesCard(
-                        notes = evidence.notes,
-                        onEditClick = { showNotesDialog = true }
-                    )
+                    NotesCard(notes = evidence.notes, onEditClick = { showNotesDialog = true })
 
                     if (evidence.sha256Hash.isNotEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
+                            colors   = CardDefaults.cardColors(
                                 containerColor = if (state.hashVerified)
                                     MaterialTheme.colorScheme.secondaryContainer
                                 else MaterialTheme.colorScheme.errorContainer
                             )
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = if (state.hashVerified)
                                         Icons.Default.VerifiedUser else Icons.Default.Warning,
@@ -364,15 +356,17 @@ fun EvidenceDetailScreen(
                                         MaterialTheme.colorScheme.onSecondaryContainer
                                     else MaterialTheme.colorScheme.onErrorContainer
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = if (state.hashVerified) "文件完整性验证通过"
-                                        else "警告：文件可能已被篡改",
+                                        text  = if (state.hashVerified)
+                                            stringResource(R.string.detail_hash_verified)
+                                        else stringResource(R.string.detail_hash_tampered),
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                     Text(
-                                        text = "SHA-256: ${evidence.sha256Hash.take(16)}...",
+                                        text  = stringResource(R.string.detail_hash_prefix) +
+                                                evidence.sha256Hash.take(16) + "...",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -388,50 +382,77 @@ fun EvidenceDetailScreen(
     }
 }
 
+// ── 编辑标题/标签弹窗 ─────────────────────────────────────────
 @Composable
-private fun NotesCard(
-    notes: String,
-    onEditClick: () -> Unit
+private fun EditMetaDialog(
+    title:     String,
+    tag:       String,
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, tag: String) -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                Icons.Default.StickyNote2,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "备注",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+    var newTitle by remember { mutableStateOf(title) }
+    var newTag   by remember { mutableStateOf(tag) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.edit_title)) },
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value         = newTitle,
+                    onValueChange = { newTitle = it },
+                    label         = { Text(stringResource(R.string.edit_field_title)) },
+                    singleLine    = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    modifier      = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value         = newTag,
+                    onValueChange = { newTag = it },
+                    label         = { Text(stringResource(R.string.edit_field_tag)) },
+                    singleLine    = true,
+                    modifier      = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(newTitle, newTag) }) {
+                Text(stringResource(R.string.edit_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.edit_cancel)) }
+        }
+    )
+}
+
+// ── 备注卡片 ──────────────────────────────────────────────────
+@Composable
+private fun NotesCard(notes: String, onEditClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Default.StickyNote2, null,
+                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.detail_notes_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(4.dp))
                 if (notes.isNotEmpty()) {
-                    Text(text = notes, style = MaterialTheme.typography.bodyMedium)
+                    Text(notes, style = MaterialTheme.typography.bodyMedium)
                 } else {
-                    Text(
-                        text = "点击右侧按钮添加备注",
+                    Text(stringResource(R.string.detail_notes_empty),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            IconButton(
-                onClick = onEditClick,
-                modifier = Modifier.size(32.dp)
-            ) {
+            IconButton(onClick = onEditClick, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = if (notes.isEmpty()) Icons.Default.Add else Icons.Default.Edit,
-                    contentDescription = if (notes.isEmpty()) "添加备注" else "编辑备注",
-                    tint = MaterialTheme.colorScheme.primary,
+                    contentDescription = if (notes.isEmpty())
+                        stringResource(R.string.detail_notes_add)
+                    else stringResource(R.string.detail_notes_edit),
+                    tint     = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -439,41 +460,39 @@ private fun NotesCard(
     }
 }
 
+// ── 备注编辑弹窗 ──────────────────────────────────────────────
 @Composable
 private fun NotesEditDialog(
-    currentNotes: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    currentNotes: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit
 ) {
     var notes by remember { mutableStateOf(currentNotes) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("编辑备注") },
-        text = {
+        title = { Text(stringResource(R.string.notes_dialog_title)) },
+        text  = {
             OutlinedTextField(
-                value = notes,
-                onValueChange = { notes = it },
-                label = { Text("备注内容") },
-                placeholder = { Text("记录事件经过、补充说明等信息") },
-                minLines = 4,
-                maxLines = 8,
+                value           = notes,
+                onValueChange   = { notes = it },
+                label           = { Text(stringResource(R.string.notes_dialog_label)) },
+                placeholder     = { Text(stringResource(R.string.notes_dialog_hint)) },
+                minLines        = 4,
+                maxLines        = 8,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                modifier = Modifier.fillMaxWidth()
+                modifier        = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(notes) }) { Text("保存") }
+            TextButton(onClick = { onConfirm(notes) }) {
+                Text(stringResource(R.string.notes_dialog_save))
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.notes_dialog_cancel)) }
         }
     )
 }
 
-/**
- * 内置视频播放器卡片
- * 全屏用 Dialog 覆盖整个屏幕，ExoPlayer 实例共享不重建
- */
+// ── 视频播放器 ────────────────────────────────────────────────
 @Composable
 private fun VideoPlayerCard(videoPath: String) {
     val context  = LocalContext.current
@@ -486,29 +505,20 @@ private fun VideoPlayerCard(videoPath: String) {
     LaunchedEffect(videoPath) {
         thumbnail = withContext(Dispatchers.IO) {
             try {
-                val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(videoPath)
-                val bmp = retriever.getFrameAtTime(
-                    0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC
-                )
-                retriever.release()
-                bmp
+                val r = MediaMetadataRetriever()
+                r.setDataSource(videoPath)
+                val bmp = r.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                r.release(); bmp
             } catch (e: Exception) { null }
         }
     }
 
     val exoPlayer = remember(videoPath) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoPath))
-            prepare()
-            playWhenReady = false
+            setMediaItem(MediaItem.fromUri(videoPath)); prepare(); playWhenReady = false
         }
     }
-
-    LaunchedEffect(isPlaying) {
-        exoPlayer.playWhenReady = isPlaying
-    }
-
+    LaunchedEffect(isPlaying) { exoPlayer.playWhenReady = isPlaying }
     DisposableEffect(videoPath) {
         onDispose {
             exoPlayer.release()
@@ -522,42 +532,23 @@ private fun VideoPlayerCard(videoPath: String) {
                 isFullscreen = false
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress      = true,
-                dismissOnClickOutside   = false
-            )
+            properties = DialogProperties(usePlatformDefaultWidth = false,
+                dismissOnBackPress = true, dismissOnClickOutside = false)
         ) {
             LaunchedEffect(Unit) {
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-            ) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
                 AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                            useController = true
-                        }
-                    },
-                    update = { it.player = exoPlayer },
+                    factory  = { ctx -> PlayerView(ctx).apply { player = exoPlayer; useController = true } },
+                    update   = { it.player = exoPlayer },
                     modifier = Modifier.fillMaxSize()
                 )
-                IconButton(
-                    onClick = {
-                        isFullscreen = false
-                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                    },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.FullscreenExit,
-                        contentDescription = "退出全屏",
-                        tint = Color.White
-                    )
+                IconButton(onClick = {
+                    isFullscreen = false
+                    activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                }, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                    Icon(Icons.Default.FullscreenExit, null, tint = Color.White)
                 }
             }
         }
@@ -567,92 +558,39 @@ private fun VideoPlayerCard(videoPath: String) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (!isPlaying) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(Modifier.fillMaxWidth().height(220.dp), Alignment.Center) {
                         if (thumbnail != null) {
-                            Image(
-                                bitmap = thumbnail!!.asImageBitmap(),
-                                contentDescription = "视频缩略图",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.3f))
-                            )
+                            Image(thumbnail!!.asImageBitmap(), null,
+                                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black)
-                            )
+                            Box(Modifier.fillMaxSize().background(Color.Black))
                         }
-                        IconButton(
-                            onClick = { isPlaying = true },
-                            modifier = Modifier.size(72.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.PlayCircle,
-                                contentDescription = "播放视频",
-                                modifier = Modifier.size(72.dp),
-                                tint = Color.White
-                            )
+                        IconButton(onClick = { isPlaying = true }, modifier = Modifier.size(72.dp)) {
+                            Icon(Icons.Default.PlayCircle, null,
+                                modifier = Modifier.size(72.dp), tint = Color.White)
                         }
                     }
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(8.dp),
-                        color = Color.Black.copy(alpha = 0.55f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    Surface(Modifier.align(Alignment.BottomStart).padding(8.dp),
+                        color = Color.Black.copy(alpha = 0.55f), shape = MaterialTheme.shapes.small) {
+                        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Videocam,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                "视频证据",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall
-                            )
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Videocam, null, tint = Color.White,
+                                modifier = Modifier.size(14.dp))
+                            Text(stringResource(R.string.detail_video_label),
+                                color = Color.White, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 } else {
                     AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                player = exoPlayer
-                                useController = true
-                            }
-                        },
-                        update = { it.player = exoPlayer },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
+                        factory  = { ctx -> PlayerView(ctx).apply { player = exoPlayer; useController = true } },
+                        update   = { it.player = exoPlayer },
+                        modifier = Modifier.fillMaxWidth().height(220.dp)
                     )
-                    IconButton(
-                        onClick = { isFullscreen = true },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Fullscreen,
-                            contentDescription = "全屏",
-                            tint = Color.White
-                        )
+                    IconButton(onClick = { isFullscreen = true },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                        Icon(Icons.Default.Fullscreen, null, tint = Color.White)
                     }
                 }
             }
@@ -660,20 +598,16 @@ private fun VideoPlayerCard(videoPath: String) {
     }
 }
 
+// ── 音频播放器 ────────────────────────────────────────────────
 @Composable
 private fun AudioPlayerCard(
-    label: String,
-    path: String,
-    playState: AudioPlayState,
-    onTogglePlay: () -> Unit,
-    onStop: () -> Unit,
-    onSeek: (Int) -> Unit
+    label: String, path: String, playState: AudioPlayState,
+    onTogglePlay: () -> Unit, onStop: () -> Unit, onSeek: (Int) -> Unit
 ) {
     val isThisPlaying = playState is AudioPlayState.Playing &&
             (playState as AudioPlayState.Playing).path == path
     val isThisPaused  = playState is AudioPlayState.Paused &&
             (playState as AudioPlayState.Paused).path == path
-
     val currentMs = when {
         isThisPlaying -> (playState as AudioPlayState.Playing).currentMs
         isThisPaused  -> (playState as AudioPlayState.Paused).currentMs
@@ -684,65 +618,37 @@ private fun AudioPlayerCard(
         isThisPaused  -> (playState as AudioPlayState.Paused).totalMs
         else -> 0
     }
-
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Mic, null, tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 if (isThisPlaying || isThisPaused) {
                     IconButton(onClick = onStop) {
-                        Icon(
-                            Icons.Default.Stop,
-                            contentDescription = "停止",
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                        Icon(Icons.Default.Stop, null, tint = MaterialTheme.colorScheme.error)
                     }
                 }
                 IconButton(onClick = onTogglePlay) {
                     Icon(
-                        imageVector = if (isThisPlaying) Icons.Default.Pause
-                        else Icons.Default.PlayArrow,
-                        contentDescription = if (isThisPlaying) "暂停" else "播放",
-                        tint = MaterialTheme.colorScheme.primary,
+                        imageVector = if (isThisPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint     = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp)
                     )
                 }
             }
             if (totalMs > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Slider(
-                    value = if (totalMs > 0) currentMs.toFloat() / totalMs else 0f,
+                Spacer(Modifier.height(8.dp))
+                Slider(value = if (totalMs > 0) currentMs.toFloat() / totalMs else 0f,
                     onValueChange = { onSeek((it * totalMs).toInt()) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = formatMs(currentMs),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = formatMs(totalMs),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(formatMs(currentMs), style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(formatMs(totalMs), style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -750,8 +656,6 @@ private fun AudioPlayerCard(
 }
 
 private fun formatMs(ms: Int): String {
-    val sec    = ms / 1000
-    val min    = sec / 60
-    val remSec = sec % 60
-    return "%d:%02d".format(min, remSec)
+    val sec = ms / 1000; val min = sec / 60; val rem = sec % 60
+    return "%d:%02d".format(min, rem)
 }

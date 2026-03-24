@@ -1,5 +1,5 @@
 // app/build.gradle.kts
-// Kotlin DSL - 应用模块构建脚本
+// 修改文件 - Kotlin DSL - 应用模块构建脚本
 
 import java.util.Properties
 
@@ -95,6 +95,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.1")
     implementation("androidx.camera:camera-view:1.3.1")
     implementation("androidx.camera:camera-video:1.3.1")
+    implementation("androidx.camera:camera-extensions:1.3.1")
 
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")

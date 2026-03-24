@@ -1,3 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- app/src/main/res/values/strings.xml -->
+<!-- 新建文件 - XML，默认语言：中文简体 -->
 <resources>
-    <string name="app_name">evidence capture</string>
+    <string name="app_name">取证记录仪</string>
+
+    <!-- 主页 -->
+    <string name="main_title">取证记录</string>
+    <string name="main_search_hint">搜索标题或标签</string>
+    <string name="main_search_clear">清除</string>
+    <string name="main_sort">排序</string>
+    <string name="main_select_exit">退出多选</string>
+    <string name="main_selected_count">已选 %d 条</string>
+    <string name="main_select_all">全选</string>
+    <string name="main_batch_delete">批量删除</string>
+    <string name="main_empty">暂无取证记录</string>
+    <string name="main_empty_filtered">没有符合条件的证据</string>
+    <string name="main_action_photo">拍照</string>
+    <string name="main_action_video">录像</string>
+    <string name="main_action_audio">录音</string>
+    <string name="main_action_text">文字</string>
+
+    <!-- 筛选类型 -->
+    <string name="filter_all">全部</string>
+    <string name="filter_photo">照片</string>
+    <string name="filter_video">视频</string>
+    <string name="filter_audio">录音</string>
+    <string name="filter_text">文字</string>
+
+    <!-- 删除对话框 -->
+    <string name="delete_title">删除证据</string>
+    <string name="delete_message">确定删除这条证据？相关文件将一并删除，此操作不可恢复。</string>
+    <string name="delete_confirm">删除</string>
+    <string name="delete_cancel">取消</string>
+    <string name="batch_delete_title">批量删除</string>
+    <string name="batch_delete_message">确定删除已选中的 %d 条证据？此操作不可恢复。</string>
+
+    <!-- 编辑对话框 -->
+    <string name="edit_title">编辑证据信息</string>
+    <string name="edit_label_id">ID：%s</string>
+    <string name="edit_label_type">类型：%s</string>
+    <string name="edit_label_time">时间：%s</string>
+    <string name="edit_field_title">标题</string>
+    <string name="edit_field_title_hint">为这条证据起个名字</string>
+    <string name="edit_field_tag_label">场景标签</string>
+    <string name="edit_field_tag">自定义标签</string>
+    <string name="edit_field_tag_hint">或手动输入标签</string>
+    <string name="edit_field_notes">备注</string>
+    <string name="edit_field_notes_hint">补充说明事件经过等信息</string>
+    <string name="edit_save">保存</string>
+    <string name="edit_cancel">取消</string>
+
+    <!-- 预设标签 -->
+    <string name="tag_rent">租房纠纷</string>
+    <string name="tag_traffic">交通事故</string>
+    <string name="tag_workplace">职场纠纷</string>
+    <string name="tag_family">家庭纠纷</string>
+    <string name="tag_fraud">消费欺诈</string>
+    <string name="tag_safety">人身安全</string>
+    <string name="tag_property">财产纠纷</string>
+    <string name="tag_other">其他</string>
+
+    <!-- 拍照取证页 -->
+    <string name="capture_title">拍照取证</string>
+    <string name="capture_need_permission">需要相机权限才能拍照</string>
+    <string name="capture_grant_permission">授予权限</string>
+    <string name="capture_capturing">采集中...</string>
+    <string name="capture_back">返回</string>
+
+    <!-- 照片确认页 -->
+    <string name="confirm_title">确认证据</string>
+    <string name="confirm_field_title">标题（可选）</string>
+    <string name="confirm_tag_label">场景标签</string>
+    <string name="confirm_voice_add">添加语音备注（可选）</string>
+    <string name="confirm_voice_done">语音备注已录制</string>
+    <string name="confirm_voice_stop">停止录音</string>
+    <string name="confirm_voice_start">开始录音</string>
+    <string name="confirm_cancel">取消</string>
+    <string name="confirm_save">保存证据</string>
+    <string name="confirm_back">返回</string>
+
+    <!-- 录音取证页 -->
+    <string name="audio_title">录音取证</string>
+    <string name="audio_back">返回</string>
+    <string name="audio_disguise">伪装界面</string>
+    <string name="audio_field_title">标题（可选）</string>
+    <string name="audio_start">开始录音</string>
+    <string name="audio_stop">停止录音</string>
+    <string name="audio_processing">处理中...</string>
+    <string name="audio_saving">正在保存...</string>
+    <string name="audio_ready_hint">录音已完成，请选择保存或取消</string>
+    <string name="audio_cancel">取消</string>
+    <string name="audio_save">保存录音</string>
+    <string name="audio_status_idle">点击开始录音</string>
+    <string name="audio_status_recording">录音中</string>
+    <string name="audio_status_done">录音完成</string>
+
+    <!-- 伪装界面选择 -->
+    <string name="disguise_picker_title">选择伪装界面</string>
+    <string name="disguise_cancel">取消</string>
+    <string name="disguise_music">音乐播放器</string>
+    <string name="disguise_calculator">计算器</string>
+    <string name="disguise_call">通话界面</string>
+    <string name="disguise_news">新闻阅读</string>
+
+    <!-- 伪装界面内容 -->
+    <string name="disguise_music_unknown_song">未知歌曲</string>
+    <string name="disguise_music_unknown_artist">未知艺术家</string>
+    <string name="disguise_call_unknown">未知号码</string>
+    <string name="disguise_call_in_call">通话中 00:00</string>
+    <string name="disguise_call_mute">静音</string>
+    <string name="disguise_call_hangup">挂断</string>
+    <string name="disguise_call_speaker">扬声器</string>
+    <string name="disguise_news_title">今日头条</string>
+    <string name="disguise_news_1_headline">国内经济稳步增长，多项指标创新高</string>
+    <string name="disguise_news_1_content">据悉，今年以来国内生产总值持续保持稳定增长态势，各项经济指标均有所提升...</string>
+    <string name="disguise_news_2_headline">科技创新驱动发展，新能源产业蓬勃兴起</string>
+    <string name="disguise_news_2_content">新能源汽车销量再创历史新高，相关配套产业链持续完善，多个城市加快布局充电基础设施...</string>
+    <string name="disguise_news_3_headline">城市建设加快推进，居民生活品质提升</string>
+    <string name="disguise_news_3_content">多个城市宣布启动新一轮城市更新改造计划，重点聚焦老旧小区改造、公共空间优化等领域...</string>
+
+    <!-- 录像取证页 -->
+    <string name="video_title">录视频取证</string>
+    <string name="video_back">返回</string>
+    <string name="video_need_permission">需要相机和麦克风权限才能录像</string>
+    <string name="video_grant_permission">授予权限</string>
+    <string name="video_done_title">录像完成</string>
+    <string name="video_done_hint">请选择保存或取消</string>
+    <string name="video_field_title">标题（可选）</string>
+    <string name="video_cancel">取消</string>
+    <string name="video_save">保存录像</string>
+    <string name="video_start">开始录制</string>
+    <string name="video_stop">停止录制</string>
+
+    <!-- 文字记录页 -->
+    <string name="textnote_title">文字记录</string>
+    <string name="textnote_back">返回</string>
+    <string name="textnote_field_title">标题（可选）</string>
+    <string name="textnote_field_content">记录内容</string>
+    <string name="textnote_tag_label">场景标签</string>
+    <string name="textnote_voice_stop">停止语音</string>
+    <string name="textnote_voice_start">语音输入</string>
+    <string name="textnote_listening">正在聆听...</string>
+    <string name="textnote_cancel">取消</string>
+    <string name="textnote_save">保存记录</string>
+
+    <!-- 证据详情页 -->
+    <string name="detail_title">证据详情</string>
+    <string name="detail_back">返回</string>
+    <string name="detail_edit_notes">编辑备注</string>
+    <string name="detail_share">分享</string>
+    <string name="detail_export">导出</string>
+    <string name="detail_export_zip">导出为 ZIP 压缩包</string>
+    <string name="detail_export_pdf">查看 PDF 报告</string>
+    <string name="detail_share_chooser">分享证据报告</string>
+    <string name="detail_export_chooser">导出证据包</string>
+    <string name="detail_share_pdf_chooser">分享 PDF 报告</string>
+    <string name="detail_hash_verified">文件完整性验证通过</string>
+    <string name="detail_hash_tampered">警告：文件可能已被篡改</string>
+    <string name="detail_hash_prefix">SHA-256: </string>
+    <string name="detail_notes_label">备注</string>
+    <string name="detail_notes_empty">点击右侧按钮添加备注</string>
+    <string name="detail_notes_add">添加备注</string>
+    <string name="detail_notes_edit">编辑备注</string>
+    <string name="detail_video_label">视频证据</string>
+    <string name="detail_voice_note_label">语音备注</string>
+    <string name="detail_audio_label">录音</string>
+
+    <!-- 备注编辑对话框 -->
+    <string name="notes_dialog_title">编辑备注</string>
+    <string name="notes_dialog_label">备注内容</string>
+    <string name="notes_dialog_hint">记录事件经过、补充说明等信息</string>
+    <string name="notes_dialog_save">保存</string>
+    <string name="notes_dialog_cancel">取消</string>
+
+    <!-- 通知 -->
+    <string name="notif_channel_record_name">录音服务</string>
+    <string name="notif_channel_record_desc">取证录音进行中的常驻通知</string>
+    <string name="notif_channel_quick_name">快速取证</string>
+    <string name="notif_channel_quick_desc">常驻快捷取证按钮</string>
+    <string name="notif_quick_title">取证记录仪</string>
+    <string name="notif_quick_text">快速取证 · 随时待命</string>
+    <string name="notif_quick_audio">● 录音</string>
+    <string name="notif_quick_video">▶ 录像</string>
+    <string name="notif_quick_photo">◉ 拍照</string>
+    <string name="notif_record_title">取证录音中</string>
+    <string name="notif_record_text">正在录音，点击返回应用</string>
+
+    <!-- PDF 报告 -->
+    <string name="pdf_type_photo">📷 拍照取证</string>
+    <string name="pdf_type_video">🎬 录像取证</string>
+    <string name="pdf_type_audio">🎙 录音取证</string>
+    <string name="pdf_type_text">📝 文字记录</string>
+    <string name="pdf_no_title">无标题记录</string>
+    <string name="pdf_section_photo">证据照片</string>
+    <string name="pdf_section_video">证据视频</string>
+    <string name="pdf_section_audio">证据录音</string>
+    <string name="pdf_section_text">文字记录</string>
+    <string name="pdf_section_basic">基本信息</string>
+    <string name="pdf_section_location">地点与时间</string>
+    <string name="pdf_section_env">环境数据</string>
+    <string name="pdf_section_integrity">文件完整性</string>
+    <string name="pdf_label_tag">场景标签</string>
+    <string name="pdf_label_notes">备注说明</string>
+    <string name="pdf_label_capture_time">采集时间</string>
+    <string name="pdf_label_ntp_time">网络校准时间</string>
+    <string name="pdf_label_gps">GPS 坐标</string>
+    <string name="pdf_label_address">地址</string>
+    <string name="pdf_label_weather">🌤 天气</string>
+    <string name="pdf_label_light">💡 光照</string>
+    <string name="pdf_label_decibel">🔊 分贝</string>
+    <string name="pdf_label_azimuth">🧭 方位角</string>
+    <string name="pdf_label_pressure">🌡 气压</string>
+    <string name="pdf_label_altitude">海拔</string>
+    <string name="pdf_label_wifi">📶 WiFi</string>
+    <string name="pdf_label_operator">📡 运营商</string>
+    <string name="pdf_ntp_fail">%s  ⚠ NTP获取失败，显示设备时间</string>
+    <string name="pdf_ntp_diff_less1s">误差&lt;1秒</string>
+    <string name="pdf_ntp_diff_slow">设备慢 %d 秒</string>
+    <string name="pdf_ntp_diff_fast">设备快 %d 秒</string>
+    <string name="pdf_gps_none">未获取到定位</string>
+    <string name="pdf_video_duration">视频时长：%s</string>
+    <string name="pdf_integrity_ok">文件完整性已记录</string>
+    <string name="pdf_integrity_none">未计算哈希值</string>
+    <string name="pdf_integrity_desc">此哈希值在文件保存时计算，可用于验证文件是否被修改</string>
+    <string name="pdf_footer">由 EvidenceCapturer 记录于 %s  ·  生成时间 %s</string>
+    <string name="pdf_share_text">请使用 PDF 阅读器打开查看取证记录</string>
+    <string name="pdf_video_placeholder">视频文件</string>
+    <string name="pdf_audio_placeholder">录音文件</string>
+
+    <!-- 语言选择 -->
+    <string name="language_select">选择语言</string>
+    <string name="lang_zh_cn">中文（简体）</string>
+    <string name="lang_zh_tw">中文（繁體）</string>
+    <string name="lang_en">English</string>
+    <string name="lang_fr">Français</string>
+    <string name="lang_de">Deutsch</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_ko">한국어</string>
+    <string name="lang_es">Español</string>
+    <string name="lang_pt">Português</string>
+    <string name="lang_ru">Русский</string>
+    <string name="lang_hi">हिन्दी</string>
+    <string name="lang_in">Bahasa Indonesia</string>
 </resources>

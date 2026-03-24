@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/service/QuickCaptureService.kt
-// 新建文件 - Kotlin
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.service
 
@@ -67,7 +67,7 @@ class QuickCaptureService : Service() {
     private val volumeKeyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action != "android.media.VOLUME_CHANGED_ACTION") return
-            val stream  = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+            val stream = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
             if (stream != AudioManager.STREAM_MUSIC) return
             val prevVol = intent.getIntExtra("android.media.EXTRA_PREV_VOLUME_STREAM_VALUE", -1)
             val newVol  = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
@@ -107,10 +107,12 @@ class QuickCaptureService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "快速取证",
+                // 注意：NotificationChannel 名称在渠道首次创建后系统会缓存
+                // 切换语言后需用户在系统设置中看到的渠道名不会实时更新，这是 Android 系统限制
+                getString(R.string.notif_channel_quick_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "常驻快捷取证按钮"
+                description          = getString(R.string.notif_channel_quick_desc)
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
@@ -128,8 +130,8 @@ class QuickCaptureService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("取证记录仪")
-            .setContentText("快速取证 · 随时待命")
+            .setContentTitle(getString(R.string.notif_quick_title))
+            .setContentText(getString(R.string.notif_quick_text))
             .setContentIntent(mainPi)
             .setOngoing(true)
             .setShowWhen(false)
@@ -137,27 +139,33 @@ class QuickCaptureService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addAction(
                 android.R.drawable.ic_btn_speak_now,
-                "● 录音",
+                getString(R.string.notif_quick_audio),
                 buildActionPendingIntent(ACTION_QUICK_AUDIO, 1)
             )
             .addAction(
                 android.R.drawable.ic_media_play,
-                "▶ 录像",
+                getString(R.string.notif_quick_video),
                 buildActionPendingIntent(ACTION_QUICK_VIDEO, 2)
             )
             .addAction(
                 android.R.drawable.ic_menu_camera,
-                "◉ 拍照",
+                getString(R.string.notif_quick_photo),
                 buildActionPendingIntent(ACTION_QUICK_PHOTO, 3)
             )
             .build()
     }
 
-    // requestCode 每个 Action 必须不同，否则系统复用同一个 PendingIntent
+    // 通知栏按钮直接启动 MainActivity 并携带 action，
+    // 比先发给 Service 再转发更快，点击后立即跳转到对应取证页面
     private fun buildActionPendingIntent(action: String, requestCode: Int): PendingIntent {
-        return PendingIntent.getService(
+        return PendingIntent.getActivity(
             this, requestCode,
-            Intent(this, QuickCaptureService::class.java).apply { this.action = action },
+            Intent(this, MainActivity::class.java).apply {
+                this.action = action
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
@@ -183,7 +191,7 @@ class QuickCaptureService : Service() {
             val windowMs = volumePressTimes.last() - volumePressTimes.first()
             if (windowMs <= VOLUME_TAP_WINDOW_MS) {
                 volumePressTimes.clear()
-                Log.d(TAG, "音量下键连按 $VOLUME_TAP_COUNT_REQUIRED 次，触发快速录音")
+                Log.d(TAG, "Volume down x$VOLUME_TAP_COUNT_REQUIRED → quick audio")
                 launchScreen(ACTION_QUICK_AUDIO)
             }
         }
@@ -191,7 +199,12 @@ class QuickCaptureService : Service() {
 
     private fun launchScreen(action: String) {
         startActivity(Intent(this, MainActivity::class.java).apply {
-            flags       = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            // FLAG_ACTIVITY_NEW_TASK：从 Service 启动 Activity 必须加
+            // FLAG_ACTIVITY_SINGLE_TOP：避免重复创建实例
+            // FLAG_ACTIVITY_REORDER_TO_FRONT：App 在后台时直接拉到前台，不重建
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             this.action = action
         })
     }
