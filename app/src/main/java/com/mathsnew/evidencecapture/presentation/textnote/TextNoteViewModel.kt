@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/presentation/textnote/TextNoteViewModel.kt
-// Kotlin - 表现层，文字记录取证 ViewModel
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.presentation.textnote
 
@@ -18,19 +18,21 @@ import com.mathsnew.evidencecapture.domain.repository.EvidenceRepository
 import com.mathsnew.evidencecapture.domain.repository.SensorSnapshotRepository
 import com.mathsnew.evidencecapture.service.InstantSensorCapture
 import com.mathsnew.evidencecapture.util.EvidenceIdGenerator
+import com.mathsnew.evidencecapture.util.LocaleHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
 import javax.inject.Inject
 
 sealed class TextNoteUiState {
-    object Idle : TextNoteUiState()
-    object Saving : TextNoteUiState()
+    object Idle    : TextNoteUiState()
+    object Saving  : TextNoteUiState()
     data class Saved(val evidenceId: String) : TextNoteUiState()
-    data class Error(val message: String) : TextNoteUiState()
+    data class Error(val message: String)    : TextNoteUiState()
 }
 
 @HiltViewModel
@@ -52,6 +54,28 @@ class TextNoteViewModel @Inject constructor(
 
     private var speechRecognizer: SpeechRecognizer? = null
 
+    /**
+     * 根据 App 当前保存的语言设置，返回对应的语音识别 BCP-47 语言标签。
+     * 未匹配时返回系统默认语言，避免语音识别报错。
+     */
+    private fun getSpeechLocale(): String {
+        return when (LocaleHelper.getSavedLanguage(context)) {
+            "zh", "zh_CN"  -> "zh-CN"
+            "zh_TW"        -> "zh-TW"
+            "en"           -> "en-US"
+            "fr"           -> "fr-FR"
+            "de"           -> "de-DE"
+            "ja"           -> "ja-JP"
+            "ko"           -> "ko-KR"
+            "es"           -> "es-ES"
+            "pt"           -> "pt-BR"
+            "ru"           -> "ru-RU"
+            "hi"           -> "hi-IN"
+            "in"           -> "id-ID"
+            else           -> Locale.getDefault().toLanguageTag()
+        }
+    }
+
     fun startVoiceInput() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             _uiState.value = TextNoteUiState.Error("设备不支持语音识别")
@@ -65,7 +89,7 @@ class TextNoteViewModel @Inject constructor(
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull() ?: ""
                     _voicePartialResult.value = text
-                    _isListening.value = false
+                    _isListening.value        = false
                 }
                 override fun onPartialResults(results: Bundle?) {
                     val text = results
@@ -87,7 +111,8 @@ class TextNoteViewModel @Inject constructor(
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                // 使用 App 当前语言，而不是写死 zh-CN
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, getSpeechLocale())
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             }
             startListening(intent)
@@ -113,21 +138,21 @@ class TextNoteViewModel @Inject constructor(
             _uiState.value = TextNoteUiState.Saving
             try {
                 val evidenceId = EvidenceIdGenerator.generate()
-                val snapshot = sensorCapture.capture(evidenceId)
-                snapshotRepository.insert(snapshot)
+                val snapshot   = sensorCapture.capture(evidenceId)
+                // 先保存 evidence，再插入 snapshot，满足外键约束顺序
                 val evidence = Evidence(
-                    id = evidenceId,
-                    mediaType = MediaType.TEXT,
-                    mediaPath = "",
+                    id          = evidenceId,
+                    mediaType   = MediaType.TEXT,
+                    mediaPath   = "",
                     textContent = content,
-                    tag = tag,
-                    // 用户未填标题时，默认用 evidenceId 作为标题
-                    title = title.ifBlank { evidenceId },
-                    sha256Hash = "",
-                    createdAt = snapshot.capturedAt,
-                    snapshotId = evidenceId
+                    tag         = tag,
+                    title       = title.ifBlank { evidenceId },
+                    sha256Hash  = "",
+                    createdAt   = snapshot.capturedAt,
+                    snapshotId  = evidenceId
                 )
                 evidenceRepository.save(evidence)
+                snapshotRepository.insert(snapshot)
                 Log.i(TAG, "Text note saved: $evidenceId")
                 launch(Dispatchers.IO) {
                     sensorCapture.fetchAndFillAsync(

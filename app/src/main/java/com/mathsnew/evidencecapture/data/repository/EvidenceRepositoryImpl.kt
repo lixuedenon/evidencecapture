@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/data/repository/EvidenceRepositoryImpl.kt
-// Kotlin - 数据层，证据仓库实现
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.data.repository
 
@@ -19,16 +19,33 @@ class EvidenceRepositoryImpl @Inject constructor(
         evidenceDao.insert(EvidenceEntity.fromDomain(evidence))
     }
 
-    override suspend fun getById(id: String): Evidence? {
-        return evidenceDao.getById(id)?.toDomain()
+    override suspend fun getById(id: String): Evidence? =
+        evidenceDao.getById(id)?.toDomain()
+
+    override fun getAll(): Flow<List<Evidence>> =
+        evidenceDao.getAllFlow().map { list -> list.map { it.toDomain() } }
+
+    override fun getTrash(): Flow<List<Evidence>> =
+        evidenceDao.getTrashFlow().map { list -> list.map { it.toDomain() } }
+
+    override suspend fun moveToTrash(id: String) {
+        evidenceDao.softDelete(id, System.currentTimeMillis())
     }
 
-    override fun getAll(): Flow<List<Evidence>> {
-        return evidenceDao.getAllFlow().map { list -> list.map { it.toDomain() } }
+    override suspend fun restore(id: String) {
+        evidenceDao.restore(id)
     }
 
     override suspend fun delete(id: String) {
         evidenceDao.deleteById(id)
+    }
+
+    override suspend fun purgeExpired(): List<Evidence> {
+        // 30天前的时间戳
+        val expireTime = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+        val expired = evidenceDao.getExpired(expireTime).map { it.toDomain() }
+        evidenceDao.purgeExpired(expireTime)
+        return expired
     }
 
     override suspend fun updateMeta(id: String, title: String, tag: String, notes: String) {

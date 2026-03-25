@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/di/AppModule.kt
-// Kotlin - DI 模块，提供数据库与 DAO 全局单例
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.di
 
@@ -30,8 +30,10 @@ object AppModule {
         EvidenceDatabase::class.java,
         EvidenceDatabase.DATABASE_NAME
     )
-        // 注册 v2→v3 Migration，新增 notes 列，保留存量数据
-        .addMigrations(EvidenceDatabase.MIGRATION_2_3)
+        .addMigrations(
+            EvidenceDatabase.MIGRATION_2_3,
+            EvidenceDatabase.MIGRATION_3_4   // v3→v4：新增 deletedAt 列（回收站）
+        )
         .build()
 
     @Provides

@@ -23,11 +23,11 @@
     <string name="filter_audio">Audio</string>
     <string name="filter_text">Text</string>
     <string name="delete_title">Beweis löschen</string>
-    <string name="delete_message">Diesen Beweis löschen? Alle zugehörigen Dateien werden entfernt. Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="delete_message">Der Beweis wird in den Papierkorb verschoben und nach 30 Tagen dauerhaft gelöscht.</string>
     <string name="delete_confirm">Löschen</string>
     <string name="delete_cancel">Abbrechen</string>
     <string name="batch_delete_title">Stapellöschung</string>
-    <string name="batch_delete_message">%d ausgewählte Elemente löschen? Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="batch_delete_message">%d Elemente werden in den Papierkorb verschoben und nach 30 Tagen dauerhaft gelöscht.</string>
     <string name="edit_title">Beweis bearbeiten</string>
     <string name="edit_label_id">ID: %s</string>
     <string name="edit_label_type">Typ: %s</string>

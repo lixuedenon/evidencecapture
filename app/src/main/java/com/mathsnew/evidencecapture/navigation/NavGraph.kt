@@ -3,16 +3,16 @@
 
 package com.mathsnew.evidencecapture.navigation
 
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import androidx.hilt.navigation.compose.hiltViewModel
-import android.content.Intent
-import androidx.compose.ui.platform.LocalContext
 import com.mathsnew.evidencecapture.presentation.audio.RecordAudioScreen
 import com.mathsnew.evidencecapture.presentation.capture.CapturePhotoScreen
 import com.mathsnew.evidencecapture.presentation.capture.CaptureViewModel
@@ -21,6 +21,7 @@ import com.mathsnew.evidencecapture.presentation.detail.EvidenceDetailScreen
 import com.mathsnew.evidencecapture.presentation.main.MainScreen
 import com.mathsnew.evidencecapture.presentation.pdf.PdfViewerScreen
 import com.mathsnew.evidencecapture.presentation.textnote.TextNoteScreen
+import com.mathsnew.evidencecapture.presentation.trash.TrashScreen
 import com.mathsnew.evidencecapture.presentation.video.RecordVideoScreen
 import com.mathsnew.evidencecapture.util.PdfReportBuilder
 import java.io.File
@@ -34,6 +35,7 @@ object Routes {
     const val TEXT_NOTE       = "text_note"
     const val EVIDENCE_DETAIL = "evidence_detail/{evidenceId}"
     const val PDF_VIEWER      = "pdf_viewer/{pdfPath}/{title}"
+    const val TRASH           = "trash"   // 回收站
 
     fun photoConfirm(evidenceId: String, photoPath: String) =
         "photo_confirm/$evidenceId/${photoPath.encodeForNav()}"
@@ -47,13 +49,10 @@ object Routes {
         java.net.URLEncoder.encode(this, "UTF-8")
 }
 
-// navController 由 MainActivity 创建后传入，使 MainActivity 可持有引用从外部触发导航
 @Composable
-fun AppNavGraph(
-    navController: NavHostController
-) {
+fun AppNavGraph(navController: NavHostController) {
     NavHost(
-        navController = navController,
+        navController    = navController,
         startDestination = Routes.MAIN
     ) {
         composable(Routes.MAIN) {
@@ -62,7 +61,8 @@ fun AppNavGraph(
                 onNavigateRecordVideo  = { navController.navigate(Routes.RECORD_VIDEO) },
                 onNavigateRecordAudio  = { navController.navigate(Routes.RECORD_AUDIO) },
                 onNavigateTextNote     = { navController.navigate(Routes.TEXT_NOTE) },
-                onNavigateDetail       = { id -> navController.navigate(Routes.evidenceDetail(id)) }
+                onNavigateDetail       = { id -> navController.navigate(Routes.evidenceDetail(id)) },
+                onNavigateTrash        = { navController.navigate(Routes.TRASH) }
             )
         }
 
@@ -81,7 +81,7 @@ fun AppNavGraph(
         }
 
         composable(
-            route = Routes.PHOTO_CONFIRM,
+            route     = Routes.PHOTO_CONFIRM,
             arguments = listOf(
                 navArgument("evidenceId") { type = NavType.StringType },
                 navArgument("photoPath")  { type = NavType.StringType }
@@ -98,7 +98,7 @@ fun AppNavGraph(
             PhotoConfirmScreen(
                 evidenceId = evidenceId,
                 photoPath  = photoPath,
-                onSaved = { id ->
+                onSaved    = { id ->
                     navController.navigate(Routes.evidenceDetail(id)) {
                         popUpTo(Routes.MAIN)
                     }
@@ -142,13 +142,13 @@ fun AppNavGraph(
         }
 
         composable(
-            route = Routes.EVIDENCE_DETAIL,
+            route     = Routes.EVIDENCE_DETAIL,
             arguments = listOf(navArgument("evidenceId") { type = NavType.StringType })
         ) { backStackEntry ->
             val evidenceId = backStackEntry.arguments?.getString("evidenceId") ?: ""
             EvidenceDetailScreen(
-                evidenceId = evidenceId,
-                onBack = { navController.popBackStack() },
+                evidenceId         = evidenceId,
+                onBack             = { navController.popBackStack() },
                 onNavigatePdfViewer = { pdfPath, title ->
                     navController.navigate(Routes.pdfViewer(pdfPath, title))
                 }
@@ -156,7 +156,7 @@ fun AppNavGraph(
         }
 
         composable(
-            route = Routes.PDF_VIEWER,
+            route     = Routes.PDF_VIEWER,
             arguments = listOf(
                 navArgument("pdfPath") { type = NavType.StringType },
                 navArgument("title")   { type = NavType.StringType }
@@ -180,6 +180,13 @@ fun AppNavGraph(
                         context.startActivity(Intent.createChooser(intent, "分享 PDF 报告"))
                     }
                 }
+            )
+        }
+
+        // 回收站页面
+        composable(Routes.TRASH) {
+            TrashScreen(
+                onBack = { navController.popBackStack() }
             )
         }
     }

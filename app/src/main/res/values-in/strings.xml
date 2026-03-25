@@ -23,11 +23,11 @@
     <string name="filter_audio">Audio</string>
     <string name="filter_text">Teks</string>
     <string name="delete_title">Hapus bukti</string>
-    <string name="delete_message">Hapus bukti ini? Semua file terkait akan dihapus. Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="delete_message">Bukti akan dipindahkan ke Sampah dan dihapus permanen setelah 30 hari.</string>
     <string name="delete_confirm">Hapus</string>
     <string name="delete_cancel">Batal</string>
     <string name="batch_delete_title">Hapus massal</string>
-    <string name="batch_delete_message">Hapus %d item yang dipilih? Tindakan ini tidak dapat dibatalkan.</string>
+    <string name="batch_delete_message">%d item akan dipindahkan ke Sampah dan dihapus permanen setelah 30 hari.</string>
     <string name="edit_title">Edit bukti</string>
     <string name="edit_label_id">ID: %s</string>
     <string name="edit_label_type">Jenis: %s</string>

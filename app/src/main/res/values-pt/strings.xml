@@ -23,11 +23,11 @@
     <string name="filter_audio">Áudio</string>
     <string name="filter_text">Texto</string>
     <string name="delete_title">Excluir evidência</string>
-    <string name="delete_message">Excluir esta evidência? Todos os arquivos relacionados serão removidos. Esta ação não pode ser desfeita.</string>
+    <string name="delete_message">A evidência será movida para a lixeira e excluída permanentemente após 30 dias.</string>
     <string name="delete_confirm">Excluir</string>
     <string name="delete_cancel">Cancelar</string>
     <string name="batch_delete_title">Exclusão em lote</string>
-    <string name="batch_delete_message">Excluir %d itens selecionados? Esta ação não pode ser desfeita.</string>
+    <string name="batch_delete_message">%d itens serão movidos para a lixeira e excluídos permanentemente após 30 dias.</string>
     <string name="edit_title">Editar evidência</string>
     <string name="edit_label_id">ID: %s</string>
     <string name="edit_label_type">Tipo: %s</string>

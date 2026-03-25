@@ -20,7 +20,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 sealed class DetailUiState {
@@ -127,14 +126,9 @@ class EvidenceDetailViewModel @Inject constructor(
                     val evidence = current.evidence
                     // 停止正在播放的音频，避免删除文件时资源占用
                     stopAudio()
-                    // 删除媒体文件
-                    if (evidence.mediaPath.isNotEmpty())
-                        File(evidence.mediaPath).takeIf { it.exists() }?.delete()
-                    if (evidence.voiceNotePath.isNotEmpty())
-                        File(evidence.voiceNotePath).takeIf { it.exists() }?.delete()
-                    // 删除数据库记录
-                    evidenceRepository.delete(evidenceId)
-                    Log.i(TAG, "Evidence deleted: $evidenceId")
+                    // 软删除：移入回收站，文件保留
+                    evidenceRepository.moveToTrash(evidenceId)
+                    Log.i(TAG, "Evidence moved to trash: $evidenceId")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Delete evidence failed: ${e.message}")

@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -67,11 +66,7 @@ class MainViewModel @Inject constructor(
     private val _customDateEnd = MutableStateFlow<Long?>(null)
     val customDateEnd: StateFlow<Long?> = _customDateEnd
 
-    // 是否同时搜索备注内容
-    private val _searchInNotes = MutableStateFlow(true)
-    val searchInNotes: StateFlow<Boolean> = _searchInNotes
-
-    // 供语言切换按钮判断录制状态
+// 供语言切换按钮判断录制状态
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording
 
@@ -97,8 +92,7 @@ class MainViewModel @Inject constructor(
                 else {
                     val inTitle = evidence.title.contains(query, ignoreCase = true)
                     val inTag   = evidence.tag.contains(query, ignoreCase = true)
-                    val inNotes = if (_searchInNotes.value)
-                        evidence.notes.contains(query, ignoreCase = true) else false
+                    val inNotes = evidence.notes.contains(query, ignoreCase = true)
                     inTitle || inTag || inNotes
                 }
             }
@@ -165,8 +159,6 @@ class MainViewModel @Inject constructor(
     fun setDateRange(range: DateRange) { _dateRange.value = range }
     fun setCustomDateStart(ms: Long?) { _customDateStart.value = ms }
     fun setCustomDateEnd(ms: Long?) { _customDateEnd.value = ms }
-    fun toggleSearchInNotes() { _searchInNotes.value = !_searchInNotes.value }
-
     fun toggleSortOrder() {
         _sortOrder.value = if (_sortOrder.value == SortOrder.NEWEST)
             SortOrder.OLDEST else SortOrder.NEWEST
@@ -197,11 +189,11 @@ class MainViewModel @Inject constructor(
     fun deleteEvidence(evidence: Evidence) {
         viewModelScope.launch {
             try {
-                deleteFiles(evidence)
-                evidenceRepository.delete(evidence.id)
-                Log.i(TAG, "Deleted: ${evidence.id}")
+                // 软删除：移入回收站，不删除文件
+                evidenceRepository.moveToTrash(evidence.id)
+                Log.i(TAG, "Moved to trash: ${evidence.id}")
             } catch (e: Exception) {
-                Log.e(TAG, "Delete failed: ${e.message}")
+                Log.e(TAG, "Move to trash failed: ${e.message}")
             }
         }
     }
@@ -210,15 +202,11 @@ class MainViewModel @Inject constructor(
         val ids = _selectedIds.value.toSet()
         viewModelScope.launch {
             try {
-                val list = evidenceList.value.filter { it.id in ids }
-                list.forEach { evidence ->
-                    deleteFiles(evidence)
-                    evidenceRepository.delete(evidence.id)
-                }
-                Log.i(TAG, "Batch deleted: ${ids.size} items")
+                ids.forEach { evidenceRepository.moveToTrash(it) }
+                Log.i(TAG, "Batch moved to trash: ${ids.size} items")
                 exitSelectionMode()
             } catch (e: Exception) {
-                Log.e(TAG, "Batch delete failed: ${e.message}")
+                Log.e(TAG, "Batch move to trash failed: ${e.message}")
             }
         }
     }
@@ -232,13 +220,6 @@ class MainViewModel @Inject constructor(
                 Log.e(TAG, "Update meta failed: ${e.message}")
             }
         }
-    }
-
-    private fun deleteFiles(evidence: Evidence) {
-        if (evidence.mediaPath.isNotEmpty())
-            File(evidence.mediaPath).takeIf { it.exists() }?.delete()
-        if (evidence.voiceNotePath.isNotEmpty())
-            File(evidence.voiceNotePath).takeIf { it.exists() }?.delete()
     }
 
     companion object {

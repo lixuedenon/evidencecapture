@@ -29,11 +29,11 @@
 
     <!-- 删除对话框 -->
     <string name="delete_title">删除证据</string>
-    <string name="delete_message">确定删除这条证据？相关文件将一并删除，此操作不可恢复。</string>
+    <string name="delete_message">证据将移入回收站，30天后永久删除。如需恢复可在回收站找回。</string>
     <string name="delete_confirm">删除</string>
     <string name="delete_cancel">取消</string>
     <string name="batch_delete_title">批量删除</string>
-    <string name="batch_delete_message">确定删除已选中的 %d 条证据？此操作不可恢复。</string>
+    <string name="batch_delete_message">已选中的 %d 条证据将移入回收站，30天后永久删除。</string>
 
     <!-- 编辑对话框 -->
     <string name="edit_title">编辑证据信息</string>

@@ -23,11 +23,11 @@
     <string name="filter_audio">녹음</string>
     <string name="filter_text">텍스트</string>
     <string name="delete_title">증거 삭제</string>
-    <string name="delete_message">이 증거를 삭제하시겠습니까? 관련 파일이 모두 삭제됩니다. 되돌릴 수 없습니다.</string>
+    <string name="delete_message">증거가 휴지통으로 이동되며 30일 후 영구 삭제됩니다. 휴지통에서 복원할 수 있습니다.</string>
     <string name="delete_confirm">삭제</string>
     <string name="delete_cancel">취소</string>
     <string name="batch_delete_title">일괄 삭제</string>
-    <string name="batch_delete_message">선택한 %d개를 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
+    <string name="batch_delete_message">%d개 항목이 휴지통으로 이동되며 30일 후 영구 삭제됩니다.</string>
     <string name="edit_title">증거 편집</string>
     <string name="edit_label_id">ID: %s</string>
     <string name="edit_label_type">유형: %s</string>

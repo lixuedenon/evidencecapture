@@ -23,11 +23,11 @@
     <string name="filter_audio">Аудио</string>
     <string name="filter_text">Текст</string>
     <string name="delete_title">Удалить улику</string>
-    <string name="delete_message">Удалить эту улику? Все связанные файлы будут удалены. Действие нельзя отменить.</string>
+    <string name="delete_message">Улика будет перемещена в корзину и удалена навсегда через 30 дней.</string>
     <string name="delete_confirm">Удалить</string>
     <string name="delete_cancel">Отмена</string>
     <string name="batch_delete_title">Массовое удаление</string>
-    <string name="batch_delete_message">Удалить %d выбранных элемента? Действие нельзя отменить.</string>
+    <string name="batch_delete_message">%d элементов будут перемещены в корзину и удалены навсегда через 30 дней.</string>
     <string name="edit_title">Редактировать улику</string>
     <string name="edit_label_id">ID: %s</string>
     <string name="edit_label_type">Тип: %s</string>

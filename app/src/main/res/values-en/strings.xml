@@ -26,11 +26,11 @@
     <string name="filter_text">Text</string>
 
     <string name="delete_title">Delete Evidence</string>
-    <string name="delete_message">Delete this evidence? All related files will be removed. This cannot be undone.</string>
+    <string name="delete_message">Evidence will be moved to Trash and permanently deleted after 30 days. You can restore it from Trash.</string>
     <string name="delete_confirm">Delete</string>
     <string name="delete_cancel">Cancel</string>
     <string name="batch_delete_title">Batch Delete</string>
-    <string name="batch_delete_message">Delete %d selected items? This cannot be undone.</string>
+    <string name="batch_delete_message">%d items will be moved to Trash and permanently deleted after 30 days.</string>
 
     <string name="edit_title">Edit Evidence</string>
     <string name="edit_label_id">ID: %s</string>

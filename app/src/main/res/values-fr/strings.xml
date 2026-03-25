@@ -23,11 +23,11 @@
     <string name="filter_audio">Audio</string>
     <string name="filter_text">Texte</string>
     <string name="delete_title">Supprimer la preuve</string>
-    <string name="delete_message">Supprimer cette preuve ? Les fichiers associés seront supprimés. Cette action est irréversible.</string>
+    <string name="delete_message">La preuve sera déplacée vers la corbeille et supprimée définitivement après 30 jours.</string>
     <string name="delete_confirm">Supprimer</string>
     <string name="delete_cancel">Annuler</string>
     <string name="batch_delete_title">Suppression groupée</string>
-    <string name="batch_delete_message">Supprimer %d éléments sélectionnés ? Cette action est irréversible.</string>
+    <string name="batch_delete_message">%d éléments seront déplacés vers la corbeille et supprimés définitivement après 30 jours.</string>
     <string name="edit_title">Modifier la preuve</string>
     <string name="edit_label_id">ID : %s</string>
     <string name="edit_label_type">Type : %s</string>

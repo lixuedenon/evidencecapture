@@ -23,11 +23,11 @@
     <string name="filter_audio">Audio</string>
     <string name="filter_text">Texto</string>
     <string name="delete_title">Eliminar evidencia</string>
-    <string name="delete_message">¿Eliminar esta evidencia? Los archivos relacionados se eliminarán. Esta acción no se puede deshacer.</string>
+    <string name="delete_message">La evidencia se moverá a la papelera y se eliminará permanentemente después de 30 días.</string>
     <string name="delete_confirm">Eliminar</string>
     <string name="delete_cancel">Cancelar</string>
     <string name="batch_delete_title">Eliminación masiva</string>
-    <string name="batch_delete_message">¿Eliminar %d elementos seleccionados? Esta acción no se puede deshacer.</string>
+    <string name="batch_delete_message">%d elementos se moverán a la papelera y se eliminarán permanentemente después de 30 días.</string>
     <string name="edit_title">Editar evidencia</string>
     <string name="edit_label_id">ID: %s</string>
     <string name="edit_label_type">Tipo: %s</string>

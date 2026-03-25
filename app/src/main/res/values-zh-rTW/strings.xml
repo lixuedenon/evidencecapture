@@ -23,11 +23,11 @@
     <string name="filter_audio">錄音</string>
     <string name="filter_text">文字</string>
     <string name="delete_title">刪除證據</string>
-    <string name="delete_message">確定刪除這條證據？相關檔案將一併刪除，此操作不可恢復。</string>
+    <string name="delete_message">證據將移入回收站，30天後永久刪除。如需恢復可在回收站找回。</string>
     <string name="delete_confirm">刪除</string>
     <string name="delete_cancel">取消</string>
     <string name="batch_delete_title">批次刪除</string>
-    <string name="batch_delete_message">確定刪除已選中的 %d 條證據？此操作不可恢復。</string>
+    <string name="batch_delete_message">已選中的 %d 條證據將移入回收站，30天後永久刪除。</string>
     <string name="edit_title">編輯證據資訊</string>
     <string name="edit_label_id">ID：%s</string>
     <string name="edit_label_type">類型：%s</string>

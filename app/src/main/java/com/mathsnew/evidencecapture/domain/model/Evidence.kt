@@ -1,5 +1,5 @@
 // app/src/main/java/com/mathsnew/evidencecapture/domain/model/Evidence.kt
-// Kotlin - 领域模型，证据主体
+// 修改文件 - Kotlin
 
 package com.mathsnew.evidencecapture.domain.model
 
@@ -19,6 +19,8 @@ package com.mathsnew.evidencecapture.domain.model
  * @param createdAt     创建时间戳（毫秒）
  * @param isUploaded    是否已上传云端（预留字段）
  * @param snapshotId    关联传感器快照 ID
+ * @param deletedAt     软删除时间戳（毫秒），null 表示未删除，非 null 表示在回收站中
+ *                      超过 30 天后由后台任务永久清除
  */
 data class Evidence(
     val id: String,
@@ -33,5 +35,6 @@ data class Evidence(
     val sha256Hash: String = "",
     val createdAt: Long,
     val isUploaded: Boolean = false,
-    val snapshotId: String = ""
+    val snapshotId: String = "",
+    val deletedAt: Long? = null   // null = 正常；非 null = 回收站
 )
